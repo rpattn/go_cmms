@@ -27,6 +27,7 @@ type Repo interface {
 	// Local auth
 	CreateLocalCredential(ctx context.Context, uid uuid.UUID, username, phc string) error
 	GetLocalCredentialByUsername(ctx context.Context, username string) (models.LocalCredential, models.User, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error)
 	PickUserOrg(ctx context.Context, uid uuid.UUID) (models.Org, error)
 
 	UserHasTOTP(ctx context.Context, uid uuid.UUID) bool
@@ -180,6 +181,22 @@ func (p *pgRepo) GetLocalCredentialByUsername(ctx context.Context, username stri
 	return lc, u, nil
 }
 
+// GetUserByUUID fetches a user by their UUID.
+func (p *pgRepo) GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error) {
+	row, err := p.q.GetUserByID(ctx, toPgUUID(id)) // assumes you have this sqlc query
+	if err != nil {
+		return models.User{}, err
+	}
+
+	u := models.User{
+		ID:    toUUID(row.ID),
+		Email: row.Email,
+		Name:  fromText(row.Name),
+	}
+
+	return u, nil
+}
+
 func (p *pgRepo) PickUserOrg(ctx context.Context, uid uuid.UUID) (models.Org, error) {
 	o, err := p.q.PickUserOrg(ctx, fromUUID(uid))
 	if err != nil {
@@ -243,4 +260,12 @@ func toText(s string) pgtype.Text {
 // Convert pgtype.Text → string
 func fromText(t pgtype.Text) string {
 	return t.String
+}
+
+// toPgUUID converts a google/uuid.UUID into a pgtype.UUID for queries.
+func toPgUUID(id uuid.UUID) pgtype.UUID {
+	return pgtype.UUID{
+		Bytes: id,
+		Valid: true,
+	}
 }

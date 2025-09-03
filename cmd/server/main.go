@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -83,6 +84,40 @@ func main() {
 				w.Write([]byte("create project"))
 			})
 	})
+
+	// main.go (add inside main())
+	mux.With(middleware.RequireAuth(r)).
+		Get("/profile", func(w http.ResponseWriter, req *http.Request) {
+			user, ok := middleware.GetUserFromContext(req.Context())
+			if !ok || user == nil {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			sess, _ := middleware.GetSessionFromContext(req.Context())
+
+			// Return only safe, self-profile fields
+			resp := map[string]any{
+				"email": user.Email, // adjust to your field names
+				"name":  user.Name,  // or FirstName/LastName, etc.
+				/*"active_org": func() any { //Org slug instead?
+					if sess != nil {
+						return sess.ActiveOrg
+					}
+					return nil
+				}(),*/
+				"provider": func() any {
+					if sess != nil {
+						return sess.Provider
+					}
+					return nil
+				}(),
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		})
 
 	// Serve static files from ./static at /static/*
 	mux.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))

@@ -128,6 +128,10 @@ POST /auth/mfa/totp/verify → validate TOTP setup.
 
 A sample test.html is served at /static/test.html with forms for signup/login and logs to browser console.
 
+Users can sign up without providing an org, and they are assigned to the test acme org (see see_demo.(up/down).sql to change this)
+
+Users can also sign up without an org and we try to map from their email domain (e.g. @testorg.com --> testorg slug)
+
 ## Next Steps (CMMS Features)
 
 Core CMMS domain

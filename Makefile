@@ -20,6 +20,10 @@ migrate-up:
 migrate-down:
 	DATABASE_URL="$(DB_URL)" migrate -path database/schema -database "$(DB_URL)" down
 
+migrate-redo:
+	DATABASE_URL="$(DB_URL)" migrate -path database/schema -database "$(DB_URL)" down 1
+	DATABASE_URL="$(DB_URL)" migrate -path database/schema -database "$(DB_URL)" up 1
+
 migrate-version:
 	DATABASE_URL="$(DB_URL)" migrate -path database/schema -database "$(DB_URL)" version
 
