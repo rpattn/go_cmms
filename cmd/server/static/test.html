@@ -19,9 +19,15 @@
     <button type="submit">Signup</button>
   </form>
 
-  <h2>Sign in with Microsoft</h2>
+  <h2>Sign in with</h2>
   <form id="signin-microsoft-form">
-    <button type="submit">Sign in with Microsoft</button>
+    <a href="/auth/microsoft"> <button type="button">Sign in with Microsoft</button> </a>
+  </form>
+  <form id="signin-microsoft-form">
+    <a href="/auth/github"> <button type="button">Sign in with Github</button> </a>
+  </form>
+  <form id="signin-microsoft-form">
+    <a href="/auth/google"> <button type="button">Sign in with Google</button> </a>
   </form>
 
   <h2>Login</h2>
@@ -77,12 +83,6 @@
       } catch (err) {
         console.error("Login error:", err);
       }
-    });
-
-    document.getElementById("signin-microsoft-form").addEventListener("submit", (e) => {
-      e.preventDefault();
-      console.log("Redirecting to Microsoft login...");
-      window.location.href = baseUrl + "/auth/microsoft";
     });
   </script>
 </body>
