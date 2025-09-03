@@ -9,7 +9,6 @@ import (
 	//"github.com/google/uuid"
 
 	"yourapp/internal/auth"
-	"yourapp/internal/models"
 	"yourapp/internal/repo"
 )
 
@@ -17,7 +16,7 @@ type ctxKey string
 
 var (
 	ctxOrg  ctxKey = "org"
-	ctxSess ctxKey = "sess"
+	ctxSess ctxKey = "session"
 )
 
 func OrgContext(r repo.Repo) func(http.Handler) http.Handler {
@@ -39,20 +38,4 @@ func OrgContext(r repo.Repo) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	}
-}
-
-func OrgFromContext(ctx context.Context) models.Org {
-	val := ctx.Value(ctxOrg)
-	if val == nil {
-		return models.Org{}
-	}
-	return val.(models.Org)
-}
-
-func SessionFromContext(ctx context.Context) *auth.Session {
-	val := ctx.Value(ctxSess)
-	if val == nil {
-		return nil
-	}
-	return val.(*auth.Session)
 }

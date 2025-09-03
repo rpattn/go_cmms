@@ -84,8 +84,11 @@ scoop install sqlc migrate
 ### Run migrations
 `.\scripts\migrate-up.ps1`
 
+### Down migrations
+`.\scripts\migrate-down.ps1`
+
 ### Generate sql code
-`.\scripts\migrate-up.ps1`
+`.\scripts\sqlc-generate.ps1`
 
 ### Run server
 `.\scripts\migrate-up.ps1`

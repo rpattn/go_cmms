@@ -1,7 +1,11 @@
 // internal/models/types.go
 package models
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type OrgRole string
 
@@ -29,4 +33,11 @@ type LocalCredential struct {
 	UserID       uuid.UUID
 	Username     string
 	PasswordHash string
+}
+
+type Session struct {
+	UserID    uuid.UUID
+	ActiveOrg uuid.UUID
+	Provider  string
+	Expiry    time.Time
 }

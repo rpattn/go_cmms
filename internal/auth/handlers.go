@@ -116,7 +116,7 @@ func CallbackHandler(providers map[ProviderKind]*Provider, r repo.Repo) http.Han
 		}
 
 		// Create session
-		SetSessionCookie(w, Session{
+		SetSessionCookie(w, models.Session{
 			UserID:    u.ID,
 			ActiveOrg: org.ID,
 			Provider:  string(pname),
@@ -124,6 +124,46 @@ func CallbackHandler(providers map[ProviderKind]*Provider, r repo.Repo) http.Han
 		})
 
 		http.Redirect(w, req, fmt.Sprintf("/orgs/%s/projects", org.Slug), http.StatusFound)
+	}
+}
+
+func ProfileHandler(r repo.Repo) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		// GET /auth/me
+		sess := ReadSession(req)
+		if sess == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		user, err := r.GetUserByID(req.Context(), sess.UserID)
+		if err != nil {
+			http.Error(w, "user not found", http.StatusInternalServerError)
+			return
+		}
+		org, err := r.FindOrgByID(req.Context(), sess.ActiveOrg)
+		if err != nil {
+			http.Error(w, "org not found", http.StatusInternalServerError)
+			return
+		}
+		role, err := r.GetRole(req.Context(), org.ID, user.ID)
+		if err != nil {
+			http.Error(w, "role not found", http.StatusInternalServerError)
+			return
+		}
+
+		// Return only safe, self-profile fields
+		resp := map[string]any{
+			"email":    user.Email, // adjust to your field names
+			"name":     user.Name,  // or FirstName/LastName, etc.
+			"org":      org.Slug,
+			"role":     role,
+			"provider": sess.Provider,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -219,9 +259,9 @@ type msClaims struct {
 
 // resolveOrgPostLogin picks an organisation after login.
 // Strategy:
-//   * If Microsoft and tid is present → find by tenant ID
-//   * else: try email domain → slug
-//   * fallback to a default slug "acme"
+//   - If Microsoft and tid is present → find by tenant ID
+//   - else: try email domain → slug
+//   - fallback to a default slug "acme"
 func resolveOrgPostLogin(ctx context.Context, r repo.Repo, pname ProviderKind, id identity) (models.Org, error) {
 	// Microsoft tenant mapping
 	if pname == ProviderMicrosoft && id.Tenant != "" {

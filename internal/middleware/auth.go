@@ -21,16 +21,16 @@ func GetUserFromContext(ctx context.Context) (*models.User, bool) {
 	return u, ok
 }
 
-func WithSession(ctx context.Context, s *auth.Session) context.Context {
+func WithSession(ctx context.Context, s *models.Session) context.Context {
 	return context.WithValue(ctx, ctxKeySession{}, s)
 }
 
-func GetSessionFromContext(ctx context.Context) (*auth.Session, bool) {
-	s, ok := ctx.Value(ctxKeySession{}).(*auth.Session)
+func GetSessionFromContext(ctx context.Context) (*models.Session, bool) {
+	s, ok := ctx.Value(ctxKeySession{}).(*models.Session)
 	return s, ok
 }
 
-// RequireAuth authenticates using the "sess" cookie (auth.ReadSession),
+// RequireAuth authenticates using the "session" cookie (auth.ReadSession),
 // then loads the user by Session.UserID from the repo and injects both
 // session and user into the context.
 func RequireAuth(r repo.Repo) func(http.Handler) http.Handler {

@@ -4,6 +4,7 @@ package middleware
 import (
 	"net/http"
 
+	"yourapp/internal/auth"
 	"yourapp/internal/models"
 	"yourapp/internal/repo"
 )
@@ -32,7 +33,7 @@ func RequireRole(r repo.Repo, allowed ...models.OrgRole) func(http.Handler) http
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			sess := SessionFromContext(req.Context())
+			sess, _ := auth.SessionFromContext(req.Context())
 			if sess == nil {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return

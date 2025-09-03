@@ -19,6 +19,7 @@ type Repo interface {
 	LinkIdentity(ctx context.Context, userID uuid.UUID, provider, subject string) error
 
 	FindOrgBySlug(ctx context.Context, slug string) (models.Org, error)
+	FindOrgByID(ctx context.Context, id uuid.UUID) (models.Org, error)
 	FindOrgByTenantID(ctx context.Context, tid string) (models.Org, error)
 	EnsureMembership(ctx context.Context, orgID, userID uuid.UUID, defaultRole models.OrgRole) (models.OrgRole, error)
 	GetRole(ctx context.Context, orgID, userID uuid.UUID) (models.OrgRole, error)
@@ -69,6 +70,19 @@ func (p *pgRepo) LinkIdentity(ctx context.Context, userID uuid.UUID, provider, s
 
 func (p *pgRepo) FindOrgBySlug(ctx context.Context, slug string) (models.Org, error) {
 	o, err := p.q.FindOrgBySlug(ctx, slug)
+	if err != nil {
+		return models.Org{}, err
+	}
+	return models.Org{
+		ID:       toUUID(o.ID),
+		Slug:     o.Slug,
+		Name:     o.Name,
+		TenantID: fromText(o.MsTenantID),
+	}, nil
+}
+
+func (p *pgRepo) FindOrgByID(ctx context.Context, id uuid.UUID) (models.Org, error) {
+	o, err := p.q.FindOrgByID(ctx, toPgUUID(id))
 	if err != nil {
 		return models.Org{}, err
 	}

@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	//"errors"
 	"net/http"
@@ -80,7 +81,7 @@ func SignupHandler(r repo.Repo) http.HandlerFunc {
 			return
 		}
 
-		SetSessionCookie(w, Session{
+		SetSessionCookie(w, models.Session{
 			UserID:    u.ID,
 			ActiveOrg: org.ID,
 			Provider:  "local",
@@ -101,21 +102,25 @@ func LoginHandler(r repo.Repo) http.HandlerFunc {
 		}
 		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 			http.Error(w, "bad json", http.StatusBadRequest)
+			log.Println("login decode error:", err)
 			return
 		}
 		username := strings.ToLower(strings.TrimSpace(body.Username))
 		if username == "" || body.Password == "" {
 			http.Error(w, "invalid login", http.StatusUnauthorized)
+			log.Println("login missing fields")
 			return
 		}
 
 		cred, user, err := r.GetLocalCredentialByUsername(req.Context(), username)
 		if err != nil {
 			http.Error(w, "invalid login", http.StatusUnauthorized)
+			log.Println("login get credential error:", err)
 			return
 		}
 		if !VerifyPassword(body.Password, cred.PasswordHash) {
 			http.Error(w, "invalid login", http.StatusUnauthorized)
+			log.Println("login bad password for user:", username)
 			return
 		}
 
@@ -123,11 +128,13 @@ func LoginHandler(r repo.Repo) http.HandlerFunc {
 		if r.UserHasTOTP(req.Context(), user.ID) {
 			if body.TOTPCode == "" {
 				http.Error(w, "mfa required", http.StatusUnauthorized)
+				log.Println("login missing mfa code for user:", username)
 				return
 			}
 			sec, ok := r.GetTOTPSecret(req.Context(), user.ID)
 			if !ok || !validateTOTP(sec, body.TOTPCode) {
 				http.Error(w, "invalid mfa", http.StatusUnauthorized)
+				log.Println("login invalid mfa code for user:", username)
 				return
 			}
 		}
@@ -136,10 +143,11 @@ func LoginHandler(r repo.Repo) http.HandlerFunc {
 		org, err := r.PickUserOrg(req.Context(), user.ID)
 		if err != nil {
 			http.Error(w, "no organisation", http.StatusForbidden)
+			log.Println("login no org for user:", username)
 			return
 		}
 
-		SetSessionCookie(w, Session{
+		SetSessionCookie(w, models.Session{
 			UserID:    user.ID,
 			ActiveOrg: org.ID,
 			Provider:  "local",
@@ -153,7 +161,7 @@ func LoginHandler(r repo.Repo) http.HandlerFunc {
 func LogoutHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		http.SetCookie(w, &http.Cookie{
-			Name:     "sess",
+			Name:     "session",
 			Value:    "",
 			Path:     "/",
 			Expires:  time.Unix(0, 0),

@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -62,8 +61,8 @@ func main() {
 
 	// OAuth/OIDC routes
 	log.Printf("Setup providers: %+v\n", providers)
-	mux.Get("/auth/{provider}", auth.StartHandler(providers, r))
-	mux.Get("/auth/{provider}/callback", auth.CallbackHandler(providers, r))
+	//mux.Get("/auth/{provider}", auth.StartHandler(providers, r))
+	//mux.Get("/auth/{provider}/callback", auth.CallbackHandler(providers, r))
 
 	// Local auth routes
 	mux.Post("/auth/signup", auth.SignupHandler(r))
@@ -71,6 +70,13 @@ func main() {
 	mux.Post("/auth/logout", auth.LogoutHandler())
 	mux.Get("/auth/mfa/totp/setup", auth.TOTPSetupBeginHandler(r))
 	mux.Post("/auth/mfa/totp/verify", auth.TOTPSetupVerifyHandler(r))
+
+	// main.go (add inside main())
+
+	// --- Protected routes ---
+	// All routes below require authentication
+
+	mux.Handle("/auth/me", auth.ProfileHandler(r))
 
 	// Example protected routes by org/role
 	mux.Route("/orgs/{slug}", func(sr chi.Router) {
@@ -85,39 +91,12 @@ func main() {
 			})
 	})
 
-	// main.go (add inside main())
-	mux.With(middleware.RequireAuth(r)).
-		Get("/profile", func(w http.ResponseWriter, req *http.Request) {
-			user, ok := middleware.GetUserFromContext(req.Context())
-			if !ok || user == nil {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			sess, _ := middleware.GetSessionFromContext(req.Context())
-
-			// Return only safe, self-profile fields
-			resp := map[string]any{
-				"email": user.Email, // adjust to your field names
-				"name":  user.Name,  // or FirstName/LastName, etc.
-				/*"active_org": func() any { //Org slug instead?
-					if sess != nil {
-						return sess.ActiveOrg
-					}
-					return nil
-				}(),*/
-				"provider": func() any {
-					if sess != nil {
-						return sess.Provider
-					}
-					return nil
-				}(),
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-		})
+	mux.Route("/work-orders", func(sr chi.Router) {
+		sr.With(middleware.RequireAuth(r)).
+			Post("/search", func(w http.ResponseWriter, _ *http.Request) {
+				w.Write([]byte("list work orders"))
+			})
+	})
 
 	// Serve static files from ./static at /static/*
 	mux.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
@@ -129,7 +108,7 @@ func main() {
 	})
 
 	// --- Start server ---
-	addr := ":8080"
+	addr := "127.0.0.1:8080"
 	if v := os.Getenv("PORT"); v != "" {
 		addr = ":" + v
 	}
