@@ -23,6 +23,7 @@ A **Computerized Maintenance Management System (CMMS)** built in Go with:
 
 ## 🏗 Project Architecture
 
+<pre>
 go_cmms/
 │
 ├── cmd/
@@ -47,7 +48,7 @@ go_cmms/
 │
 ├── examle.config.yaml # Default config (example)
 └── go.mod # Go module definition
-
+</pre>
 
 ---
 
