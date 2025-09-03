@@ -1,0 +1,25 @@
+# config.yaml
+
+# The public URL of your app (used for OAuth redirect URIs).
+# In local dev, this is usually http://localhost:8080
+base_url: "http://localhost:8080"
+
+# Database connection string for Postgres
+database:
+  url: "postgres://postgres:admin@localhost:5432/go_cmms_test?sslmode=disable"
+
+# Microsoft Entra ID (Azure AD) OAuth2 / OIDC
+microsoft:
+  client_id: ""        # e.g. "00000000-1111-2222-3333-444444444444"
+  client_secret: ""    # client secret from your app registration
+  tenant_id: "organizations"   # or your tenant GUID
+
+# Google OAuth2 / OIDC
+google:
+  client_id: ""        # e.g. "1234567890-abcdef.apps.googleusercontent.com"
+  client_secret: ""
+
+# GitHub OAuth2
+github:
+  client_id: ""        # e.g. "Iv1.1234567890abcdef"
+  client_secret: ""
