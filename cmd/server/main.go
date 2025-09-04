@@ -19,6 +19,7 @@ import (
 	"yourapp/internal/auth"
 	"yourapp/internal/config"
 	db "yourapp/internal/db/gen"
+	"yourapp/internal/handlers"
 	"yourapp/internal/middleware"
 	"yourapp/internal/models"
 	"yourapp/internal/repo"
@@ -95,12 +96,7 @@ func main() {
 			})
 	})
 
-	mux.Route("/work-orders", func(sr chi.Router) {
-		sr.With(middleware.RequireAuth(r)).
-			Post("/search", func(w http.ResponseWriter, _ *http.Request) {
-				w.Write([]byte("list work orders"))
-			})
-	})
+	handlers.RegisterRoutes(mux, r)
 
 	// Serve static files from ./static at /static/*
 	mux.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
