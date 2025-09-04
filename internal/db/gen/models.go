@@ -10,6 +10,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Asset struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	Name      pgtype.Text        `db:"name" json:"name"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type Customer struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	Name      pgtype.Text        `db:"name" json:"name"`
+	Email     pgtype.Text        `db:"email" json:"email"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type File struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	Path      pgtype.Text        `db:"path" json:"path"`
+	Filename  pgtype.Text        `db:"filename" json:"filename"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type Identity struct {
 	ID       pgtype.UUID `db:"id" json:"id"`
 	UserID   pgtype.UUID `db:"user_id" json:"user_id"`
@@ -30,6 +50,12 @@ type LocalCredential struct {
 	PasswordHash       string             `db:"password_hash" json:"password_hash"`
 	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	LastPasswordChange pgtype.Timestamptz `db:"last_password_change" json:"last_password_change"`
+}
+
+type Location struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	Name      pgtype.Text        `db:"name" json:"name"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type LoginAttempt struct {
@@ -61,6 +87,24 @@ type PasswordReset struct {
 	UsedAt    pgtype.Timestamptz `db:"used_at" json:"used_at"`
 }
 
+type PreventiveMaintenance struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	Name      pgtype.Text        `db:"name" json:"name"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type Request struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	Title     pgtype.Text        `db:"title" json:"title"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type Team struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	Name      pgtype.Text        `db:"name" json:"name"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type User struct {
 	ID        pgtype.UUID        `db:"id" json:"id"`
 	Email     string             `db:"email" json:"email"`
@@ -74,4 +118,56 @@ type UserTotp struct {
 	Issuer    string             `db:"issuer" json:"issuer"`
 	Label     string             `db:"label" json:"label"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type WorkOrder struct {
+	ID                      pgtype.UUID        `db:"id" json:"id"`
+	OrganisationID          pgtype.UUID        `db:"organisation_id" json:"organisation_id"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	CreatedByID             pgtype.UUID        `db:"created_by_id" json:"created_by_id"`
+	DueDate                 pgtype.Timestamptz `db:"due_date" json:"due_date"`
+	Priority                string             `db:"priority" json:"priority"`
+	EstimatedDuration       float64            `db:"estimated_duration" json:"estimated_duration"`
+	EstimatedStartDate      pgtype.Timestamptz `db:"estimated_start_date" json:"estimated_start_date"`
+	Description             pgtype.Text        `db:"description" json:"description"`
+	Title                   string             `db:"title" json:"title"`
+	RequiredSignature       bool               `db:"required_signature" json:"required_signature"`
+	ImageID                 pgtype.UUID        `db:"image_id" json:"image_id"`
+	CategoryID              pgtype.UUID        `db:"category_id" json:"category_id"`
+	LocationID              pgtype.UUID        `db:"location_id" json:"location_id"`
+	TeamID                  pgtype.UUID        `db:"team_id" json:"team_id"`
+	PrimaryUserID           pgtype.UUID        `db:"primary_user_id" json:"primary_user_id"`
+	AssetID                 pgtype.UUID        `db:"asset_id" json:"asset_id"`
+	CustomID                pgtype.Text        `db:"custom_id" json:"custom_id"`
+	CompletedByID           pgtype.UUID        `db:"completed_by_id" json:"completed_by_id"`
+	CompletedOn             pgtype.Timestamptz `db:"completed_on" json:"completed_on"`
+	Status                  string             `db:"status" json:"status"`
+	SignatureID             pgtype.UUID        `db:"signature_id" json:"signature_id"`
+	Archived                bool               `db:"archived" json:"archived"`
+	ParentRequestID         pgtype.UUID        `db:"parent_request_id" json:"parent_request_id"`
+	Feedback                pgtype.Text        `db:"feedback" json:"feedback"`
+	ParentPreventiveMaintID pgtype.UUID        `db:"parent_preventive_maint_id" json:"parent_preventive_maint_id"`
+	FirstTimeToReact        pgtype.Timestamptz `db:"first_time_to_react" json:"first_time_to_react"`
+}
+
+type WorkOrderAssignedTo struct {
+	WorkOrderID pgtype.UUID `db:"work_order_id" json:"work_order_id"`
+	UserID      pgtype.UUID `db:"user_id" json:"user_id"`
+}
+
+type WorkOrderCategory struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	Name      pgtype.Text        `db:"name" json:"name"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type WorkOrderCustomer struct {
+	WorkOrderID pgtype.UUID `db:"work_order_id" json:"work_order_id"`
+	CustomerID  pgtype.UUID `db:"customer_id" json:"customer_id"`
+}
+
+type WorkOrderFile struct {
+	WorkOrderID pgtype.UUID `db:"work_order_id" json:"work_order_id"`
+	FileID      pgtype.UUID `db:"file_id" json:"file_id"`
 }

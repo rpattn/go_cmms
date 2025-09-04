@@ -36,12 +36,49 @@ type Repo interface {
 	UserHasTOTP(ctx context.Context, uid uuid.UUID) bool
 	SetTOTPSecret(ctx context.Context, uid uuid.UUID, secret, issuer, label string) error
 	GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool)
+
+	ListWorkOrders(ctx context.Context, orgID uuid.UUID, limit int32) ([]models.WorkOrder, error)
 }
 
 // pgRepo wraps the sqlc Queries.
 type pgRepo struct{ q *db.Queries }
 
 func New(q *db.Queries) Repo { return &pgRepo{q: q} }
+
+// ---------------- Work Orders ----------------
+// ListWorkOrders fetches N surface-level work orders for an organisation.
+func (p *pgRepo) ListWorkOrders(ctx context.Context, orgID uuid.UUID, limit int32) ([]models.WorkOrder, error) {
+	rows, err := p.q.ListWorkOrders(ctx, db.ListWorkOrdersParams{
+		OrganisationID: toPgUUID(orgID),
+		Limit:          limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	wos := make([]models.WorkOrder, len(rows))
+	for i, r := range rows {
+		wos[i] = models.WorkOrder{
+			ID:          toUUID(r.ID),
+			OrgID:       toUUID(r.OrgID),
+			Title:       r.Title,
+			Description: fromText(r.Description),
+			Status:      r.Status,
+			Priority:    r.Priority,
+			CreatedAt:   toTime(r.CreatedAt),
+			UpdatedAt:   toTime(r.UpdatedAt),
+		}
+	}
+
+	return wos, nil
+}
+
+func toTime(t pgtype.Timestamptz) time.Time {
+	if !t.Valid {
+		return time.Time{} // zero value
+	}
+	return t.Time
+}
 
 // ---------------- Users & Identities ----------------
 

@@ -85,7 +85,6 @@ func main() {
 
 	// Example protected routes by org/role
 	mux.Route("/orgs/{slug}", func(sr chi.Router) {
-		sr.Use(middleware.OrgContext(r))
 		sr.With(middleware.RequireRole(r, models.RoleViewer)).
 			Get("/projects", func(w http.ResponseWriter, _ *http.Request) {
 				w.Write([]byte("list projects"))

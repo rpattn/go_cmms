@@ -8,6 +8,18 @@ import (
 	"github.com/google/uuid"
 )
 
+// WorkOrder is the domain-level struct returned by repositories.
+type WorkOrder struct {
+	ID          uuid.UUID `json:"id"`
+	OrgID       uuid.UUID `json:"org_id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description,omitempty"`
+	Status      string    `json:"status"`
+	Priority    string    `json:"priority"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type OrgRole string
 
 const (

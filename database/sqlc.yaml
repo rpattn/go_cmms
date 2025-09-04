@@ -5,6 +5,8 @@ sql:
       - "schema/001_base.up.sql"
       - "schema/002_local_auth.up.sql"
       - "schema/003_seed_demo.up.sql"
+      - "schema/004_data.up.sql"
+      - "schema/005_seed_demo.up.sql"
     queries: "queries"
     engine: "postgresql"
     gen:

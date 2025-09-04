@@ -1,34 +1,14 @@
 package middleware
 
 import (
-	"context"
+	"fmt"
 	"net/http"
 
 	"yourapp/internal/auth"
-	"yourapp/internal/models"
 	"yourapp/internal/repo"
+
+	"github.com/google/uuid"
 )
-
-type ctxKeyUser struct{}
-type ctxKeySession struct{}
-
-func WithUser(ctx context.Context, u *models.User) context.Context {
-	return context.WithValue(ctx, ctxKeyUser{}, u)
-}
-
-func GetUserFromContext(ctx context.Context) (*models.User, bool) {
-	u, ok := ctx.Value(ctxKeyUser{}).(*models.User)
-	return u, ok
-}
-
-func WithSession(ctx context.Context, s *models.Session) context.Context {
-	return context.WithValue(ctx, ctxKeySession{}, s)
-}
-
-func GetSessionFromContext(ctx context.Context) (*models.Session, bool) {
-	s, ok := ctx.Value(ctxKeySession{}).(*models.Session)
-	return s, ok
-}
 
 // RequireAuth authenticates using the "session" cookie (auth.ReadSession),
 // then loads the user by Session.UserID from the repo and injects both
@@ -48,8 +28,17 @@ func RequireAuth(r repo.Repo) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := WithSession(req.Context(), s)
-			ctx = WithUser(ctx, &user)
+			fmt.Println("org id in session:", s.ActiveOrg)
+			if s.ActiveOrg == uuid.Nil {
+				http.Error(w, "organization not found for session", http.StatusUnauthorized)
+				return
+			}
+
+			ctx := auth.WithSession(req.Context(), s)
+			ctx = auth.WithUser(ctx, &user)
+			//inject org from session
+			ctx = auth.WithOrg(ctx, s.ActiveOrg)
+
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	}

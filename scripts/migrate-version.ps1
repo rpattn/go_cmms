@@ -7,5 +7,8 @@ if (-not $env:DATABASE_URL) {
   Write-Error "DATABASE_URL is not set. Run:  . ./scripts/env.ps1"
 }
 
-$path = Join-Path $PSScriptRoot "..\db\migrations"
-migrate -path $path -database $env:DATABASE_URL version
+$path = Join-Path $PSScriptRoot "..\database\schema"
+$pathUnix  = ($path -replace '\\','/')
+
+migrate -path $pathUnix -database $env:DATABASE_URL force 4
+# use force N instead of version to fix

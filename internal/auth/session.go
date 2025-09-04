@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"yourapp/internal/models"
+
+	"github.com/google/uuid"
 )
 
 type ctxKeyUser struct{}
@@ -53,12 +55,9 @@ func ReadSession(r *http.Request) *models.Session {
 	return &s
 }
 
-func OrgFromContext(ctx context.Context) models.Org {
-	val := ctx.Value(ctxOrg)
-	if val == nil {
-		return models.Org{}
-	}
-	return val.(models.Org)
+func OrgFromContext(ctx context.Context) (uuid.UUID, bool) {
+	id, ok := ctx.Value(ctxOrg).(uuid.UUID)
+	return id, ok
 }
 
 func UserFromContext(ctx context.Context) (*models.User, bool) {
@@ -75,4 +74,26 @@ func SessionFromContext(ctx context.Context) (*models.Session, bool) {
 		return nil, false
 	}
 	return val.(*models.Session), true
+}
+
+func WithUser(ctx context.Context, u *models.User) context.Context {
+	return context.WithValue(ctx, ctxKeyUser{}, u)
+}
+
+func WithOrg(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, ctxOrg, id)
+}
+
+func GetUserFromContext(ctx context.Context) (*models.User, bool) {
+	u, ok := ctx.Value(ctxKeyUser{}).(*models.User)
+	return u, ok
+}
+
+func WithSession(ctx context.Context, s *models.Session) context.Context {
+	return context.WithValue(ctx, ctxKeySession{}, s)
+}
+
+func GetSessionFromContext(ctx context.Context) (*models.Session, bool) {
+	s, ok := ctx.Value(ctxKeySession{}).(*models.Session)
+	return s, ok
 }

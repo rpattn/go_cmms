@@ -1,41 +1,17 @@
-// internal/middleware/org_context.go
+// middleware/context.go
 package middleware
 
 import (
 	"context"
-	"net/http"
-
-	"github.com/go-chi/chi/v5"
-	//"github.com/google/uuid"
 
 	"yourapp/internal/auth"
-	"yourapp/internal/repo"
+	"yourapp/internal/models"
 )
 
-type ctxKey string
-
-var (
-	ctxOrg  ctxKey = "org"
-	ctxSess ctxKey = "session"
-)
-
-func OrgContext(r repo.Repo) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			sess := auth.ReadSession(req)
-			if sess == nil {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			slug := chi.URLParam(req, "slug")
-			org, err := r.FindOrgBySlug(req.Context(), slug)
-			if err != nil || org.ID != sess.ActiveOrg {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			}
-			ctx := context.WithValue(req.Context(), ctxOrg, org)
-			ctx = context.WithValue(ctx, ctxSess, sess)
-			next.ServeHTTP(w, req.WithContext(ctx))
-		})
-	}
+// Keep your existing helpers...
+func WithSession(ctx context.Context, s *models.Session) context.Context {
+	return auth.WithSession(ctx, s)
+}
+func GetSessionFromContext(ctx context.Context) (*models.Session, bool) {
+	return auth.GetSessionFromContext(ctx)
 }
