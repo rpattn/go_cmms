@@ -12,6 +12,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/go-chi/chi/v5"
+	mux_middleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors" // <-- cors
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -48,6 +49,9 @@ func main() {
 
 	// --- Router ---
 	mux := chi.NewRouter()
+
+	// Simple request logger (logs method, path, status, and duration)
+	mux.Use(mux_middleware.Logger)
 
 	// --- CORS middleware ---
 	mux.Use(cors.Handler(cors.Options{

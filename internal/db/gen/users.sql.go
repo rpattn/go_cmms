@@ -43,6 +43,82 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	return i, err
 }
 
+const getUserWithOrgAndRole = `-- name: GetUserWithOrgAndRole :one
+WITH
+  input AS (
+    SELECT $1::uuid AS user_id, $2::uuid AS org_id
+  ),
+  u AS (
+    SELECT u.id, u.email, u.name, u.created_at
+    FROM users u
+    JOIN input i ON u.id = i.user_id
+  ),
+  o AS (
+    SELECT o.id, o.slug, o.name, o.created_at
+    FROM organisations o
+    JOIN input i ON o.id = i.org_id
+  ),
+  m AS (
+    SELECT om.org_id, om.user_id, om.role
+    FROM org_memberships om
+    JOIN o ON om.org_id = o.id
+    JOIN u ON om.user_id = u.id
+  )
+SELECT
+  u.id            AS user_id,
+  u.email         AS user_email,
+  u.name          AS user_name,
+  o.id            AS org_id,
+  o.slug          AS org_slug,
+  o.name          AS org_name,
+  m.role::text    AS role,
+  (u.id IS NOT NULL)::bool AS user_exists,
+  (o.id IS NOT NULL)::bool AS org_exists,
+  (m.role IS NOT NULL)::bool AS role_exists
+FROM input i
+LEFT JOIN u ON TRUE
+LEFT JOIN o ON TRUE
+LEFT JOIN m ON TRUE
+LIMIT 1
+`
+
+type GetUserWithOrgAndRoleParams struct {
+	Column1 pgtype.UUID `db:"column_1" json:"column_1"`
+	Column2 pgtype.UUID `db:"column_2" json:"column_2"`
+}
+
+type GetUserWithOrgAndRoleRow struct {
+	UserID     pgtype.UUID `db:"user_id" json:"user_id"`
+	UserEmail  pgtype.Text `db:"user_email" json:"user_email"`
+	UserName   pgtype.Text `db:"user_name" json:"user_name"`
+	OrgID      pgtype.UUID `db:"org_id" json:"org_id"`
+	OrgSlug    pgtype.Text `db:"org_slug" json:"org_slug"`
+	OrgName    pgtype.Text `db:"org_name" json:"org_name"`
+	Role       string      `db:"role" json:"role"`
+	UserExists bool        `db:"user_exists" json:"user_exists"`
+	OrgExists  bool        `db:"org_exists" json:"org_exists"`
+	RoleExists bool        `db:"role_exists" json:"role_exists"`
+}
+
+// params: $1 = user_id (UUID), $2 = org_id (UUID)
+func (q *Queries) GetUserWithOrgAndRole(ctx context.Context, arg GetUserWithOrgAndRoleParams) (GetUserWithOrgAndRoleRow, error) {
+	row := q.db.QueryRow(ctx, getUserWithOrgAndRole, arg.Column1, arg.Column2)
+	var i GetUserWithOrgAndRoleRow
+	err := row.Scan(
+		&i.UserID,
+		&i.UserEmail,
+		&i.UserName,
+		&i.OrgID,
+		&i.OrgSlug,
+		&i.OrgName,
+		&i.Role,
+		&i.UserExists,
+		&i.OrgExists,
+		&i.RoleExists,
+	)
+	return i, err
+}
+
 const upsertUserByVerifiedEmail = `-- name: UpsertUserByVerifiedEmail :one
 INSERT INTO users (email, name)
 VALUES ($1, $2)

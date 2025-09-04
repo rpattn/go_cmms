@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -23,6 +24,7 @@ type Repo interface {
 	FindOrgByTenantID(ctx context.Context, tid string) (models.Org, error)
 	EnsureMembership(ctx context.Context, orgID, userID uuid.UUID, defaultRole models.OrgRole) (models.OrgRole, error)
 	GetRole(ctx context.Context, orgID, userID uuid.UUID) (models.OrgRole, error)
+	GetUserWithOrgAndRole(ctx context.Context, uid, oid uuid.UUID) (models.User, models.Org, models.OrgRole, error)
 	ApplyGroupRoleMappings(ctx context.Context, orgID uuid.UUID, provider string, groupIDs []string) (models.OrgRole, error)
 
 	// Local auth
@@ -209,6 +211,114 @@ func (p *pgRepo) GetUserByID(ctx context.Context, id uuid.UUID) (models.User, er
 	}
 
 	return u, nil
+}
+
+func (p *pgRepo) GetUserWithOrgAndRole(
+	ctx context.Context,
+	uid uuid.UUID,
+	oid uuid.UUID,
+) (models.User, models.Org, models.OrgRole, error) {
+	// Build params
+	params := db.GetUserWithOrgAndRoleParams{
+		Column1: toPgUUID(uid),
+		Column2: toPgUUID(oid),
+	}
+
+	row, err := p.q.GetUserWithOrgAndRole(ctx, params)
+	if err != nil {
+		return models.User{}, models.Org{}, "", err
+	}
+
+	// Helpers to unwrap sqlc's interface{} fields
+	toBool := func(x interface{}) bool {
+		switch v := x.(type) {
+		case bool:
+			return v
+		case pgtype.Bool:
+			return v.Bool
+		case string:
+			return v == "t" || v == "true" || v == "1"
+		case []byte:
+			s := string(v)
+			return s == "t" || s == "true" || s == "1"
+		case int64:
+			return v != 0
+		case nil:
+			return false
+		default:
+			return false
+		}
+	}
+	toString := func(x interface{}) (string, bool) {
+		switch v := x.(type) {
+		case string:
+			return v, v != ""
+		case []byte:
+			if len(v) == 0 {
+				return "", false
+			}
+			return string(v), true
+		case pgtype.Text:
+			if v.Valid {
+				return v.String, true
+			}
+			return "", false
+		case nil:
+			return "", false
+		default:
+			return fmt.Sprintf("%v", v), true
+		}
+	}
+
+	// Not-found checks (keep your own sentinels if you have them)
+	if !toBool(row.UserExists) {
+		return models.User{}, models.Org{}, "", models.ErrUserNotFound
+	}
+	if !toBool(row.OrgExists) {
+		return models.User{}, models.Org{}, "", models.ErrOrgNotFound
+	}
+	if !toBool(row.RoleExists) {
+		return models.User{}, models.Org{}, "", models.ErrRoleNotFound
+	}
+
+	// Map to domain types
+	var (
+		uID = row.UserID.Bytes
+		oID = row.OrgID.Bytes
+	)
+	u := models.User{
+		ID:    uID,
+		Email: textOrEmpty(row.UserEmail),
+		Name:  textOrEmpty(row.UserName),
+	}
+	o := models.Org{
+		ID:       oID,
+		Slug:     textOrEmpty(row.OrgSlug),
+		Name:     textOrEmpty(row.OrgName),
+		TenantID: "", // not in this query
+	}
+
+	roleStr, _ := toString(row.Role)
+	role := models.OrgRole(roleStr)
+
+	return u, o, role, nil
+}
+
+// tiny helpers for pgtype.Text
+func textOrEmpty(t pgtype.Text) string {
+	if t.Valid {
+		return t.String
+	}
+	return ""
+}
+
+// If your query doesn't return created_at columns, delete uses of extractTime/CreatedAt.
+func extractTime(_ db.GetUserWithOrgAndRoleRow, _ string) *time.Time { return nil }
+func zeroIfNil(t *time.Time) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return *t
 }
 
 func (p *pgRepo) PickUserOrg(ctx context.Context, uid uuid.UUID) (models.Org, error) {

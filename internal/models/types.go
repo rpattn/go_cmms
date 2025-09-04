@@ -2,6 +2,7 @@
 package models
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +22,12 @@ type User struct {
 	Email string
 	Name  string
 }
+
+var (
+	ErrUserNotFound = errors.New("user not found")
+	ErrOrgNotFound  = errors.New("org not found")
+	ErrRoleNotFound = errors.New("role not found")
+)
 
 type Org struct {
 	ID       uuid.UUID

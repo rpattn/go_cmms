@@ -135,19 +135,17 @@ func ProfileHandler(r repo.Repo) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		user, err := r.GetUserByID(req.Context(), sess.UserID)
+		user, org, role, err := r.GetUserWithOrgAndRole(req.Context(), sess.UserID, sess.ActiveOrg)
 		if err != nil {
-			http.Error(w, "user not found", http.StatusInternalServerError)
-			return
-		}
-		org, err := r.FindOrgByID(req.Context(), sess.ActiveOrg)
-		if err != nil {
-			http.Error(w, "org not found", http.StatusInternalServerError)
-			return
-		}
-		role, err := r.GetRole(req.Context(), org.ID, user.ID)
-		if err != nil {
-			http.Error(w, "role not found", http.StatusInternalServerError)
+			fmt.Printf("ProfileHandler: error fetching user/org/role: %v\n", err)
+			if errors.Is(err, models.ErrUserNotFound) {
+				http.Error(w, "user not found", http.StatusNotFound)
+			} else if errors.Is(err, models.ErrOrgNotFound) {
+				http.Error(w, "org not found", http.StatusNotFound)
+			} else if errors.Is(err, models.ErrRoleNotFound) {
+				http.Error(w, "role not found", http.StatusNotFound)
+			}
+			http.Error(w, "internal error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
