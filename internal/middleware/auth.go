@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 
 	"yourapp/internal/auth"
@@ -28,7 +27,6 @@ func RequireAuth(r repo.Repo) func(http.Handler) http.Handler {
 				return
 			}
 
-			fmt.Println("org id in session:", s.ActiveOrg)
 			if s.ActiveOrg == uuid.Nil {
 				http.Error(w, "organization not found for session", http.StatusUnauthorized)
 				return

@@ -71,3 +71,150 @@ func (q *Queries) ListWorkOrders(ctx context.Context, arg ListWorkOrdersParams) 
 	}
 	return items, nil
 }
+
+const listWorkOrdersPaged = `-- name: ListWorkOrdersPaged :many
+WITH
+params AS (
+  SELECT $1::jsonb AS p
+),
+page AS (
+  SELECT
+    COALESCE((p->>'pageNum')::int, 0)  AS page_num,
+    COALESCE((p->>'pageSize')::int,50) AS page_size
+  FROM params
+),
+ff AS (
+  SELECT jsonb_array_elements(p->'filterFields') AS f
+  FROM params
+  WHERE (p ? 'filterFields') AND jsonb_typeof(p->'filterFields') = 'array'
+),
+status_vals AS (
+  SELECT COALESCE(array_agg(v), ARRAY[]::text[]) AS vals
+  FROM (
+    SELECT jsonb_array_elements_text(f->'values') AS v
+    FROM ff
+    WHERE f->>'field' = 'status' AND COALESCE(f->>'operation','') = 'in'
+  ) s
+),
+archived_eq AS (
+  SELECT (f->>'value')::boolean AS archived
+  FROM ff
+  WHERE f->>'field' = 'archived' AND COALESCE(f->>'operation','') IN ('eq','equals')
+  LIMIT 1
+),
+filtered AS (
+  SELECT w.id, w.organisation_id, w.created_at, w.updated_at, w.created_by_id, w.due_date, w.priority, w.estimated_duration, w.estimated_start_date, w.description, w.title, w.required_signature, w.image_id, w.category_id, w.location_id, w.team_id, w.primary_user_id, w.asset_id, w.custom_id, w.completed_by_id, w.completed_on, w.status, w.signature_id, w.archived, w.parent_request_id, w.feedback, w.parent_preventive_maint_id, w.first_time_to_react
+  FROM work_order w
+  LEFT JOIN status_vals sv ON TRUE
+  LEFT JOIN archived_eq  a  ON TRUE
+  WHERE
+    (sv.vals = '{}'::text[] OR w.status = ANY (sv.vals))
+    AND (a.archived IS NULL OR w.archived = a.archived)
+),
+ordered AS (
+  SELECT
+    f.id, f.organisation_id, f.created_at, f.updated_at, f.created_by_id, f.due_date, f.priority, f.estimated_duration, f.estimated_start_date, f.description, f.title, f.required_signature, f.image_id, f.category_id, f.location_id, f.team_id, f.primary_user_id, f.asset_id, f.custom_id, f.completed_by_id, f.completed_on, f.status, f.signature_id, f.archived, f.parent_request_id, f.feedback, f.parent_preventive_maint_id, f.first_time_to_react,
+    COUNT(*) OVER()::bigint AS total_rows,
+    ROW_NUMBER() OVER (ORDER BY f.created_at DESC, f.id DESC) AS rn
+  FROM filtered f
+),
+bounds AS (
+  SELECT
+    (page_num * page_size)              AS off,
+    (page_num * page_size + page_size)  AS lim
+  FROM page
+)
+SELECT
+  o.id, o.organisation_id, o.created_at, o.updated_at, o.created_by_id, o.due_date, o.priority, o.estimated_duration, o.estimated_start_date, o.description, o.title, o.required_signature, o.image_id, o.category_id, o.location_id, o.team_id, o.primary_user_id, o.asset_id, o.custom_id, o.completed_by_id, o.completed_on, o.status, o.signature_id, o.archived, o.parent_request_id, o.feedback, o.parent_preventive_maint_id, o.first_time_to_react, o.total_rows, o.rn  -- includes all work_order cols + total_rows + rn
+FROM ordered o
+JOIN bounds b ON TRUE
+WHERE o.rn > b.off AND o.rn <= b.lim
+ORDER BY o.rn
+`
+
+type ListWorkOrdersPagedRow struct {
+	ID                      pgtype.UUID        `db:"id" json:"id"`
+	OrganisationID          pgtype.UUID        `db:"organisation_id" json:"organisation_id"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	CreatedByID             pgtype.UUID        `db:"created_by_id" json:"created_by_id"`
+	DueDate                 pgtype.Timestamptz `db:"due_date" json:"due_date"`
+	Priority                string             `db:"priority" json:"priority"`
+	EstimatedDuration       float64            `db:"estimated_duration" json:"estimated_duration"`
+	EstimatedStartDate      pgtype.Timestamptz `db:"estimated_start_date" json:"estimated_start_date"`
+	Description             pgtype.Text        `db:"description" json:"description"`
+	Title                   string             `db:"title" json:"title"`
+	RequiredSignature       bool               `db:"required_signature" json:"required_signature"`
+	ImageID                 pgtype.UUID        `db:"image_id" json:"image_id"`
+	CategoryID              pgtype.UUID        `db:"category_id" json:"category_id"`
+	LocationID              pgtype.UUID        `db:"location_id" json:"location_id"`
+	TeamID                  pgtype.UUID        `db:"team_id" json:"team_id"`
+	PrimaryUserID           pgtype.UUID        `db:"primary_user_id" json:"primary_user_id"`
+	AssetID                 pgtype.UUID        `db:"asset_id" json:"asset_id"`
+	CustomID                pgtype.Text        `db:"custom_id" json:"custom_id"`
+	CompletedByID           pgtype.UUID        `db:"completed_by_id" json:"completed_by_id"`
+	CompletedOn             pgtype.Timestamptz `db:"completed_on" json:"completed_on"`
+	Status                  string             `db:"status" json:"status"`
+	SignatureID             pgtype.UUID        `db:"signature_id" json:"signature_id"`
+	Archived                bool               `db:"archived" json:"archived"`
+	ParentRequestID         pgtype.UUID        `db:"parent_request_id" json:"parent_request_id"`
+	Feedback                pgtype.Text        `db:"feedback" json:"feedback"`
+	ParentPreventiveMaintID pgtype.UUID        `db:"parent_preventive_maint_id" json:"parent_preventive_maint_id"`
+	FirstTimeToReact        pgtype.Timestamptz `db:"first_time_to_react" json:"first_time_to_react"`
+	TotalRows               int64              `db:"total_rows" json:"total_rows"`
+	Rn                      int64              `db:"rn" json:"rn"`
+}
+
+// To call this query, use:
+// workOrders, err := db.ListWorkOrders(ctx, 10)
+// order + count once
+func (q *Queries) ListWorkOrdersPaged(ctx context.Context, dollar_1 []byte) ([]ListWorkOrdersPagedRow, error) {
+	rows, err := q.db.Query(ctx, listWorkOrdersPaged, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkOrdersPagedRow
+	for rows.Next() {
+		var i ListWorkOrdersPagedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganisationID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CreatedByID,
+			&i.DueDate,
+			&i.Priority,
+			&i.EstimatedDuration,
+			&i.EstimatedStartDate,
+			&i.Description,
+			&i.Title,
+			&i.RequiredSignature,
+			&i.ImageID,
+			&i.CategoryID,
+			&i.LocationID,
+			&i.TeamID,
+			&i.PrimaryUserID,
+			&i.AssetID,
+			&i.CustomID,
+			&i.CompletedByID,
+			&i.CompletedOn,
+			&i.Status,
+			&i.SignatureID,
+			&i.Archived,
+			&i.ParentRequestID,
+			&i.Feedback,
+			&i.ParentPreventiveMaintID,
+			&i.FirstTimeToReact,
+			&i.TotalRows,
+			&i.Rn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

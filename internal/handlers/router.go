@@ -16,7 +16,7 @@ func RegisterRoutes(mux *chi.Mux, r repo.Repo) {
 		// Apply auth to the whole group ONCE
 		sr.Use(middleware.RequireAuth(r))
 
-		sr.Post("/search", h.Search)
+		sr.Post("/search", h.FilterSearch)
 		sr.Post("/", h.Create)
 		sr.Get("/", h.List)
 		sr.Get("/{workOrderID}", h.GetByID)

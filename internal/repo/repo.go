@@ -38,12 +38,43 @@ type Repo interface {
 	GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool)
 
 	ListWorkOrders(ctx context.Context, orgID uuid.UUID, limit int32) ([]models.WorkOrder, error)
+	ListWorkOrdersPaged(ctx context.Context, arg []byte) ([]models.WorkOrder, error)
 }
 
 // pgRepo wraps the sqlc Queries.
 type pgRepo struct{ q *db.Queries }
 
 func New(q *db.Queries) Repo { return &pgRepo{q: q} }
+
+// ListWorkOrdersPaged maps the sqlc row(s) to your domain model.
+// NOTE: sqlc will name organisation_id -> OrganisationID.
+func (p *pgRepo) ListWorkOrdersPaged(ctx context.Context, arg []byte) ([]models.WorkOrder, error) {
+	rows, err := p.q.ListWorkOrdersPaged(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return []models.WorkOrder{}, nil
+	}
+
+	wos := make([]models.WorkOrder, 0, len(rows))
+	for _, r := range rows {
+		wo := models.WorkOrder{
+			ID:        toUUID(r.ID),             // uuid
+			OrgID:     toUUID(r.OrganisationID), // << fix: OrganisationID, not OrgID
+			Title:     r.Title,                  // text NOT NULL in your schema
+			Status:    r.Status,                 // text
+			Priority:  r.Priority,               // text
+			CreatedAt: toTime(r.CreatedAt),      // timestamptz
+			UpdatedAt: toTime(r.UpdatedAt),
+		}
+		// Nullable fields (description is nullable in your schema)
+		wo.Description = fromText(r.Description) // if r.Description is sqlc NullString/pgtype.Text
+
+		wos = append(wos, wo)
+	}
+	return wos, nil
+}
 
 // ---------------- Work Orders ----------------
 // ListWorkOrders fetches N surface-level work orders for an organisation.
@@ -55,7 +86,7 @@ func (p *pgRepo) ListWorkOrders(ctx context.Context, orgID uuid.UUID, limit int3
 	if err != nil {
 		return nil, err
 	}
-
+	//TODO: Get DUE date too in query and map it here
 	wos := make([]models.WorkOrder, len(rows))
 	for i, r := range rows {
 		wos[i] = models.WorkOrder{
