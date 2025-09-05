@@ -171,3 +171,64 @@ func (q *Queries) GetTasksByWorkOrderID(ctx context.Context, arg GetTasksByWorkO
 	}
 	return items, nil
 }
+
+const listSimpleTasksByWorkOrder = `-- name: ListSimpleTasksByWorkOrder :many
+SELECT
+  t.id AS id,                                                -- UUID
+  tb.label AS title,                                         -- task "title"
+  (UPPER(COALESCE(t.value, '')) IN ('COMPLETE','PASS')) AS completed,
+  u.name AS assignee_name,
+  jsonb_build_object(                                        -- taskBase payload
+    'id', tb.id,
+    'label', tb.label,
+    'taskType', tb.task_type,
+    'assetId', tb.asset_id,
+    'meterId', tb.meter_id
+  ) AS task_base
+FROM tasks t
+JOIN task_bases tb ON tb.id = t.task_base_id
+LEFT JOIN users u ON u.id = tb.user_id
+JOIN work_order wo ON wo.id = t.work_order_id AND wo.organisation_id = $1
+WHERE t.organisation_id = $1
+  AND t.work_order_id   = $2
+ORDER BY t.created_at ASC
+`
+
+type ListSimpleTasksByWorkOrderParams struct {
+	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
+	WorkOrderID    pgtype.UUID `db:"work_order_id" json:"work_order_id"`
+}
+
+type ListSimpleTasksByWorkOrderRow struct {
+	ID           pgtype.UUID `db:"id" json:"id"`
+	Title        string      `db:"title" json:"title"`
+	Completed    bool        `db:"completed" json:"completed"`
+	AssigneeName pgtype.Text `db:"assignee_name" json:"assignee_name"`
+	TaskBase     []byte      `db:"task_base" json:"task_base"`
+}
+
+func (q *Queries) ListSimpleTasksByWorkOrder(ctx context.Context, arg ListSimpleTasksByWorkOrderParams) ([]ListSimpleTasksByWorkOrderRow, error) {
+	rows, err := q.db.Query(ctx, listSimpleTasksByWorkOrder, arg.OrganisationID, arg.WorkOrderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSimpleTasksByWorkOrderRow
+	for rows.Next() {
+		var i ListSimpleTasksByWorkOrderRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Completed,
+			&i.AssigneeName,
+			&i.TaskBase,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

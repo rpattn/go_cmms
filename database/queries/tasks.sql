@@ -76,3 +76,25 @@ WHERE t.work_order_id = $2
 
 GROUP BY
   t.id, tb.id, u.id, a.id, m.id, pm.id, wo.id;
+
+
+-- name: ListSimpleTasksByWorkOrder :many
+SELECT
+  t.id AS id,                                                -- UUID
+  tb.label AS title,                                         -- task "title"
+  (UPPER(COALESCE(t.value, '')) IN ('COMPLETE','PASS')) AS completed,
+  u.name AS assignee_name,
+  jsonb_build_object(                                        -- taskBase payload
+    'id', tb.id,
+    'label', tb.label,
+    'taskType', tb.task_type,
+    'assetId', tb.asset_id,
+    'meterId', tb.meter_id
+  ) AS task_base
+FROM tasks t
+JOIN task_bases tb ON tb.id = t.task_base_id
+LEFT JOIN users u ON u.id = tb.user_id
+JOIN work_order wo ON wo.id = t.work_order_id AND wo.organisation_id = $1
+WHERE t.organisation_id = $1
+  AND t.work_order_id   = $2
+ORDER BY t.created_at ASC;

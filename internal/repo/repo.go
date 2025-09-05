@@ -43,6 +43,7 @@ type Repo interface {
 	GetWorkOrderDetail(ctx context.Context, id uuid.UUID) (json.RawMessage, error)
 
 	GetTasksByWorkOrderID(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID) ([]db.GetTasksByWorkOrderIDRow, error)
+	ListSimpleTasksByWorkOrderID(ctx context.Context, org_id, workOrderID uuid.UUID) ([]db.ListSimpleTasksByWorkOrderRow, error)
 }
 
 // pgRepo wraps the sqlc Queries.
@@ -51,6 +52,22 @@ type pgRepo struct{ q *db.Queries }
 func New(q *db.Queries) Repo { return &pgRepo{q: q} }
 
 // ---------------- Tasks ----------------
+// ListSimpleTasksByWorkOrderID maps the sqlc row(s) to your domain model.
+func (p *pgRepo) ListSimpleTasksByWorkOrderID(ctx context.Context, org_id, workOrderID uuid.UUID) ([]db.ListSimpleTasksByWorkOrderRow, error) {
+	params := db.ListSimpleTasksByWorkOrderParams{
+		OrganisationID: fromUUID(org_id),
+		WorkOrderID:    fromUUID(workOrderID),
+	}
+	rows, err := p.q.ListSimpleTasksByWorkOrder(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return []db.ListSimpleTasksByWorkOrderRow{}, nil
+	}
+	return rows, nil
+}
+
 // GetTasksByWorkOrderID maps the sqlc row(s) to your domain model.
 func (p *pgRepo) GetTasksByWorkOrderID(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID) ([]db.GetTasksByWorkOrderIDRow, error) {
 	params := db.GetTasksByWorkOrderIDParams{

@@ -30,6 +30,7 @@ func RegisterRoutes(mux *chi.Mux, r repo.Repo) {
 		// Apply auth to the whole group ONCE
 		sr.Use(middleware.RequireAuth(r))
 
-		sr.Get("/work-order/{workOrderID}", t.GetByID)
+		sr.Get("/work-order/{workOrderID}", t.GetByWOID)
+		sr.Get("/work-order/{workOrderID}/full", t.GetByWOIDFull)
 	})
 }
