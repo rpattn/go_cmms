@@ -107,3 +107,75 @@ FROM ordered o
 JOIN page_bounds b ON TRUE
 WHERE o.rn > b.off AND o.rn <= b.lim
 ORDER BY o.rn;
+
+
+
+-- name: GetWorkOrderDetail :one
+SELECT
+  jsonb_strip_nulls(
+    jsonb_build_object(
+      'id',                       wo.id,
+      'organisation_id',          wo.organisation_id,
+      'created_at',               wo.created_at,
+      'updated_at',               wo.updated_at,
+      'created_by_id',            wo.created_by_id,
+      'due_date',                 wo.due_date,
+      'priority',                 wo.priority,
+      'estimated_duration',       wo.estimated_duration,
+      'estimated_start_date',     wo.estimated_start_date,
+      'description',              wo.description,
+      'title',                    wo.title,
+      'required_signature',       wo.required_signature,
+      'custom_id',                wo.custom_id,
+      'completed_by_id',          wo.completed_by_id,
+      'completed_on',             wo.completed_on,
+      'status',                   wo.status,
+      'archived',                 wo.archived,
+      'feedback',                 wo.feedback,
+      'first_time_to_react',      wo.first_time_to_react,
+
+      'image',                    (SELECT jsonb_build_object('id', fimg.id, 'filename', fimg.filename, 'path', fimg.path, 'created_at', fimg.created_at)
+                                   FROM files fimg WHERE fimg.id = wo.image_id),
+      'signature',                (SELECT jsonb_build_object('id', fsig.id, 'filename', fsig.filename, 'path', fsig.path, 'created_at', fsig.created_at)
+                                   FROM files fsig WHERE fsig.id = wo.signature_id),
+      'category',                 (SELECT jsonb_build_object('id', c.id, 'name', c.name, 'created_at', c.created_at)
+                                   FROM work_order_categories c WHERE c.id = wo.category_id),
+      'location',                 (SELECT jsonb_build_object('id', l.id, 'name', l.name, 'created_at', l.created_at)
+                                   FROM locations l WHERE l.id = wo.location_id),
+      'team',                     (SELECT jsonb_build_object('id', t.id, 'name', t.name, 'created_at', t.created_at)
+                                   FROM teams t WHERE t.id = wo.team_id),
+      'asset',                    (SELECT jsonb_build_object('id', a.id, 'name', a.name, 'created_at', a.created_at)
+                                   FROM assets a WHERE a.id = wo.asset_id),
+      'parent_request',           (SELECT jsonb_build_object('id', r.id, 'title', r.title, 'created_at', r.created_at)
+                                   FROM requests r WHERE r.id = wo.parent_request_id),
+      'parent_preventive_maint',  (SELECT jsonb_build_object('id', pm.id, 'name', pm.name, 'created_at', pm.created_at)
+                                   FROM preventive_maintenances pm WHERE pm.id = wo.parent_preventive_maint_id),
+
+      'assigned_to',              COALESCE(
+                                     (SELECT jsonb_agg(jsonb_build_object('user_id', x.user_id))
+                                      FROM work_order_assigned_to x
+                                      WHERE x.work_order_id = wo.id),
+                                     '[]'::jsonb
+                                   ),
+
+      'customers',                COALESCE(
+                                     (SELECT jsonb_agg(jsonb_build_object('id', c2.id, 'name', c2.name, 'email', c2.email, 'created_at', c2.created_at))
+                                      FROM work_order_customers woc2
+                                      JOIN customers c2 ON c2.id = woc2.customer_id
+                                      WHERE woc2.work_order_id = wo.id),
+                                     '[]'::jsonb
+                                   ),
+
+      'files',                    COALESCE(
+                                     (SELECT jsonb_agg(jsonb_build_object('id', f.id, 'filename', f.filename, 'path', f.path, 'created_at', f.created_at))
+                                      FROM work_order_files wf
+                                      JOIN files f ON f.id = wf.file_id
+                                      WHERE wf.work_order_id = wo.id),
+                                     '[]'::jsonb
+                                   )
+    )
+  ) AS work_order
+FROM work_order wo
+WHERE wo.id = $1::uuid
+LIMIT 1;
+-- ---------------------------------------------------------------------------

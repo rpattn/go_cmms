@@ -3,6 +3,8 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -38,12 +40,74 @@ type Repo interface {
 	GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool)
 
 	ListWorkOrdersPaged(ctx context.Context, arg []byte) ([]models.WorkOrder, error)
+	GetWorkOrderDetail(ctx context.Context, id uuid.UUID) (json.RawMessage, error)
 }
 
 // pgRepo wraps the sqlc Queries.
 type pgRepo struct{ q *db.Queries }
 
 func New(q *db.Queries) Repo { return &pgRepo{q: q} }
+
+// ---------------- Work Orders ----------------
+// GetWorkOrderByID maps the sqlc row to your domain model.
+func (p *pgRepo) GetWorkOrderDetail(ctx context.Context, id uuid.UUID) (json.RawMessage, error) {
+	row, err := p.q.GetWorkOrderDetail(ctx, toPgUUID(id))
+	if err != nil {
+		return nil, err
+	}
+
+	// Depending on your sqlc/driver config, the single JSONB column ("work_order") will be:
+	//   - []byte/json.RawMessage
+	//   - or pgtype.JSONB (pgx)
+	// Handle both cleanly.
+
+	switch v := any(row).(type) {
+	case []byte:
+		if len(v) == 0 {
+			return nil, errors.New("work order not found")
+		}
+		// Make a copy so the caller can keep it after next scan
+		out := make([]byte, len(v))
+		copy(out, v)
+		return json.RawMessage(out), nil
+
+	// If sqlc generated a named struct like:
+	//   type GetWorkOrderDetailRow struct { WorkOrder []byte }
+	// then your row is that struct. Handle it too:
+	case struct{ WorkOrder []byte }:
+		if len(v.WorkOrder) == 0 {
+			return nil, errors.New("work order not found")
+		}
+		out := make([]byte, len(v.WorkOrder))
+		copy(out, v.WorkOrder)
+		return json.RawMessage(out), nil
+
+	// If using pgx with pgtype.JSONB
+	case interface{ Get() any }:
+		// Some sqlc versions wrap JSONB with a type that exposes Get()
+		if got := v.Get(); got != nil {
+			if b, ok := got.([]byte); ok {
+				out := make([]byte, len(b))
+				copy(out, b)
+				return json.RawMessage(out), nil
+			}
+		}
+	}
+
+	// Fallback: try to reflect common sqlc row shapes
+	type rowJSONB struct{ WorkOrder json.RawMessage }
+	if r, ok := any(row).(rowJSONB); ok {
+		if len(r.WorkOrder) == 0 {
+			return nil, errors.New("work order not found")
+		}
+		out := make([]byte, len(r.WorkOrder))
+		copy(out, r.WorkOrder)
+		return json.RawMessage(out), nil
+	}
+
+	// If none of the above matched, ask to expose the generated row type.
+	return nil, errors.New("unexpected row type for GetWorkOrderDetail; check sqlc-generated type")
+}
 
 // ListWorkOrdersPaged maps the sqlc row(s) to your domain model.
 // NOTE: sqlc will name organisation_id -> OrganisationID.

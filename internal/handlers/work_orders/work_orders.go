@@ -9,6 +9,7 @@ import (
 	"yourapp/internal/repo"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -93,11 +94,37 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "workOrderID")
-	httpserver.JSON(w, http.StatusOK, map[string]string{
-		"id":      id,
-		"message": "get work order",
-	})
+	// 1. Parse workOrderID from URL
+	idStr := chi.URLParam(r, "workOrderID")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid work order ID",
+		})
+		return
+	}
+
+	// 2. Call repo
+	ctx := r.Context()
+	wo, err := h.repo.GetWorkOrderDetail(ctx, id)
+	if err != nil {
+		// You might want to distinguish sql.ErrNoRows here
+		httpserver.JSON(w, http.StatusInternalServerError, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+	if len(wo) == 0 {
+		httpserver.JSON(w, http.StatusNotFound, map[string]string{
+			"error": "work order not found",
+		})
+		return
+	}
+
+	// 3. Send the JSON document returned from DB directly
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(wo)
 }
 
 // GET /work-orders
