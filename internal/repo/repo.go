@@ -41,12 +41,31 @@ type Repo interface {
 
 	ListWorkOrdersPaged(ctx context.Context, arg []byte) ([]models.WorkOrder, error)
 	GetWorkOrderDetail(ctx context.Context, id uuid.UUID) (json.RawMessage, error)
+
+	GetTasksByWorkOrderID(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID) ([]db.GetTasksByWorkOrderIDRow, error)
 }
 
 // pgRepo wraps the sqlc Queries.
 type pgRepo struct{ q *db.Queries }
 
 func New(q *db.Queries) Repo { return &pgRepo{q: q} }
+
+// ---------------- Tasks ----------------
+// GetTasksByWorkOrderID maps the sqlc row(s) to your domain model.
+func (p *pgRepo) GetTasksByWorkOrderID(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID) ([]db.GetTasksByWorkOrderIDRow, error) {
+	params := db.GetTasksByWorkOrderIDParams{
+		OrganisationID: fromUUID(org_id),
+		WorkOrderID:    fromUUID(workOrderID),
+	}
+	rows, err := p.q.GetTasksByWorkOrderID(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return []db.GetTasksByWorkOrderIDRow{}, nil
+	}
+	return rows, nil
+}
 
 // ---------------- Work Orders ----------------
 // GetWorkOrderByID maps the sqlc row to your domain model.

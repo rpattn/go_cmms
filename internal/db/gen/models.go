@@ -66,6 +66,12 @@ type LoginAttempt struct {
 	Success  bool               `db:"success" json:"success"`
 }
 
+type Meter struct {
+	ID        pgtype.UUID        `db:"id" json:"id"`
+	Name      pgtype.Text        `db:"name" json:"name"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type OrgMembership struct {
 	OrgID  pgtype.UUID `db:"org_id" json:"org_id"`
 	UserID pgtype.UUID `db:"user_id" json:"user_id"`
@@ -97,6 +103,47 @@ type Request struct {
 	ID        pgtype.UUID        `db:"id" json:"id"`
 	Title     pgtype.Text        `db:"title" json:"title"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type Task struct {
+	ID                      pgtype.UUID        `db:"id" json:"id"`
+	OrganisationID          pgtype.UUID        `db:"organisation_id" json:"organisation_id"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	CreatedByID             pgtype.UUID        `db:"created_by_id" json:"created_by_id"`
+	TaskBaseID              pgtype.UUID        `db:"task_base_id" json:"task_base_id"`
+	Notes                   pgtype.Text        `db:"notes" json:"notes"`
+	Value                   pgtype.Text        `db:"value" json:"value"`
+	WorkOrderID             pgtype.UUID        `db:"work_order_id" json:"work_order_id"`
+	PreventiveMaintenanceID pgtype.UUID        `db:"preventive_maintenance_id" json:"preventive_maintenance_id"`
+}
+
+type TaskBasis struct {
+	ID             pgtype.UUID        `db:"id" json:"id"`
+	OrganisationID pgtype.UUID        `db:"organisation_id" json:"organisation_id"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	CreatedByID    pgtype.UUID        `db:"created_by_id" json:"created_by_id"`
+	Label          string             `db:"label" json:"label"`
+	TaskType       string             `db:"task_type" json:"task_type"`
+	UserID         pgtype.UUID        `db:"user_id" json:"user_id"`
+	AssetID        pgtype.UUID        `db:"asset_id" json:"asset_id"`
+	MeterID        pgtype.UUID        `db:"meter_id" json:"meter_id"`
+}
+
+type TaskFile struct {
+	TaskID pgtype.UUID `db:"task_id" json:"task_id"`
+	FileID pgtype.UUID `db:"file_id" json:"file_id"`
+}
+
+type TaskOption struct {
+	ID             pgtype.UUID        `db:"id" json:"id"`
+	OrganisationID pgtype.UUID        `db:"organisation_id" json:"organisation_id"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	CreatedByID    pgtype.UUID        `db:"created_by_id" json:"created_by_id"`
+	Label          pgtype.Text        `db:"label" json:"label"`
+	TaskBaseID     pgtype.UUID        `db:"task_base_id" json:"task_base_id"`
 }
 
 type Team struct {
