@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteTaskByID = `-- name: DeleteTaskByID :exec
+DELETE FROM tasks
+WHERE organisation_id = $1
+  AND id = $2
+`
+
+type DeleteTaskByIDParams struct {
+	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
+	ID             pgtype.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) DeleteTaskByID(ctx context.Context, arg DeleteTaskByIDParams) error {
+	_, err := q.db.Exec(ctx, deleteTaskByID, arg.OrganisationID, arg.ID)
+	return err
+}
+
 const getTasksByWorkOrderID = `-- name: GetTasksByWorkOrderID :many
 SELECT
   t.id                        AS task_id,
@@ -231,4 +247,97 @@ func (q *Queries) ListSimpleTasksByWorkOrder(ctx context.Context, arg ListSimple
 		return nil, err
 	}
 	return items, nil
+}
+
+const markTaskComplete = `-- name: MarkTaskComplete :one
+UPDATE tasks
+SET
+  value = 'COMPLETE',
+  updated_at = now()
+WHERE organisation_id = $1
+  AND id = $2
+RETURNING
+  id,
+  organisation_id,
+  value,
+  updated_at
+`
+
+type MarkTaskCompleteParams struct {
+	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
+	ID             pgtype.UUID `db:"id" json:"id"`
+}
+
+type MarkTaskCompleteRow struct {
+	ID             pgtype.UUID        `db:"id" json:"id"`
+	OrganisationID pgtype.UUID        `db:"organisation_id" json:"organisation_id"`
+	Value          pgtype.Text        `db:"value" json:"value"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) MarkTaskComplete(ctx context.Context, arg MarkTaskCompleteParams) (MarkTaskCompleteRow, error) {
+	row := q.db.QueryRow(ctx, markTaskComplete, arg.OrganisationID, arg.ID)
+	var i MarkTaskCompleteRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.Value,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const toggleTaskCompletion = `-- name: ToggleTaskCompletion :one
+UPDATE tasks
+SET
+  value = CASE
+    WHEN $1::boolean = true
+      THEN 'COMPLETE'
+    WHEN $1::boolean = false AND previous_value IS NOT NULL
+      THEN previous_value
+    WHEN $1::boolean = false
+      THEN 'OPEN'
+    ELSE value
+  END,
+  previous_value = CASE
+    WHEN $1::boolean = true
+      THEN value  -- stash current before marking complete
+    ELSE previous_value
+  END,
+  updated_at = now()
+WHERE organisation_id = $2
+  AND id = $3
+RETURNING
+  id,
+  organisation_id,
+  value,
+  previous_value,
+  updated_at
+`
+
+type ToggleTaskCompletionParams struct {
+	Complete       bool        `db:"complete" json:"complete"`
+	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
+	ID             pgtype.UUID `db:"id" json:"id"`
+}
+
+type ToggleTaskCompletionRow struct {
+	ID             pgtype.UUID        `db:"id" json:"id"`
+	OrganisationID pgtype.UUID        `db:"organisation_id" json:"organisation_id"`
+	Value          pgtype.Text        `db:"value" json:"value"`
+	PreviousValue  pgtype.Text        `db:"previous_value" json:"previous_value"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ToggleTaskCompletion(ctx context.Context, arg ToggleTaskCompletionParams) (ToggleTaskCompletionRow, error) {
+	row := q.db.QueryRow(ctx, toggleTaskCompletion, arg.Complete, arg.OrganisationID, arg.ID)
+	var i ToggleTaskCompletionRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.Value,
+		&i.PreviousValue,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

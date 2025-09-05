@@ -114,6 +114,7 @@ type Task struct {
 	TaskBaseID              pgtype.UUID        `db:"task_base_id" json:"task_base_id"`
 	Notes                   pgtype.Text        `db:"notes" json:"notes"`
 	Value                   pgtype.Text        `db:"value" json:"value"`
+	PreviousValue           pgtype.Text        `db:"previous_value" json:"previous_value"`
 	WorkOrderID             pgtype.UUID        `db:"work_order_id" json:"work_order_id"`
 	PreventiveMaintenanceID pgtype.UUID        `db:"preventive_maintenance_id" json:"preventive_maintenance_id"`
 }

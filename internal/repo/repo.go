@@ -44,6 +44,9 @@ type Repo interface {
 
 	GetTasksByWorkOrderID(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID) ([]db.GetTasksByWorkOrderIDRow, error)
 	ListSimpleTasksByWorkOrderID(ctx context.Context, org_id, workOrderID uuid.UUID) ([]db.ListSimpleTasksByWorkOrderRow, error)
+	MarkTaskComplete(ctx context.Context, org_id uuid.UUID, taskID uuid.UUID) (db.MarkTaskCompleteRow, error)
+	DeleteTaskByID(ctx context.Context, org_id, taskID uuid.UUID) error
+	ToggleTaskComplete(ctx context.Context, org_id uuid.UUID, taskID uuid.UUID, complete bool) (db.ToggleTaskCompletionRow, error)
 }
 
 // pgRepo wraps the sqlc Queries.
@@ -52,6 +55,34 @@ type pgRepo struct{ q *db.Queries }
 func New(q *db.Queries) Repo { return &pgRepo{q: q} }
 
 // ---------------- Tasks ----------------
+// ToggleTaskComplete
+func (p *pgRepo) ToggleTaskComplete(ctx context.Context, org_id uuid.UUID, taskID uuid.UUID, complete bool) (db.ToggleTaskCompletionRow, error) {
+	args := db.ToggleTaskCompletionParams{
+		OrganisationID: fromUUID(org_id),
+		ID:             toPgUUID(taskID),
+		Complete:       complete, // toggle to true for now
+	}
+	return p.q.ToggleTaskCompletion(ctx, args)
+}
+
+// MarkTaskComplete
+func (p *pgRepo) MarkTaskComplete(ctx context.Context, org_id uuid.UUID, taskID uuid.UUID) (db.MarkTaskCompleteRow, error) {
+	args := db.MarkTaskCompleteParams{
+		OrganisationID: fromUUID(org_id),
+		ID:             toPgUUID(taskID),
+	}
+	return p.q.MarkTaskComplete(ctx, args)
+}
+
+// DeleteTaskByID
+func (p *pgRepo) DeleteTaskByID(ctx context.Context, org_id, taskID uuid.UUID) error {
+	args := db.DeleteTaskByIDParams{
+		OrganisationID: fromUUID(org_id),
+		ID:             fromUUID(taskID),
+	}
+	return p.q.DeleteTaskByID(ctx, args)
+}
+
 // ListSimpleTasksByWorkOrderID maps the sqlc row(s) to your domain model.
 func (p *pgRepo) ListSimpleTasksByWorkOrderID(ctx context.Context, org_id, workOrderID uuid.UUID) ([]db.ListSimpleTasksByWorkOrderRow, error) {
 	params := db.ListSimpleTasksByWorkOrderParams{

@@ -98,3 +98,51 @@ JOIN work_order wo ON wo.id = t.work_order_id AND wo.organisation_id = $1
 WHERE t.organisation_id = $1
   AND t.work_order_id   = $2
 ORDER BY t.created_at ASC;
+
+
+-- name: MarkTaskComplete :one
+UPDATE tasks
+SET
+  value = 'COMPLETE',
+  updated_at = now()
+WHERE organisation_id = $1
+  AND id = $2
+RETURNING
+  id,
+  organisation_id,
+  value,
+  updated_at;
+
+
+-- name: DeleteTaskByID :exec
+DELETE FROM tasks
+WHERE organisation_id = $1
+  AND id = $2;
+
+-- name: ToggleTaskCompletion :one
+UPDATE tasks
+SET
+  value = CASE
+    WHEN @complete::boolean = true
+      THEN 'COMPLETE'
+    WHEN @complete::boolean = false AND previous_value IS NOT NULL
+      THEN previous_value
+    WHEN @complete::boolean = false
+      THEN 'OPEN'
+    ELSE value
+  END,
+  previous_value = CASE
+    WHEN @complete::boolean = true
+      THEN value  -- stash current before marking complete
+    ELSE previous_value
+  END,
+  updated_at = now()
+WHERE organisation_id = @organisation_id
+  AND id = @id
+RETURNING
+  id,
+  organisation_id,
+  value,
+  previous_value,
+  updated_at;
+

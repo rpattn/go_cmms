@@ -9,6 +9,7 @@
 --   - task_type is TEXT (enum-like) with default 'SUBTASK' to stay flexible (sqlc-safe).
 --   - Task.images modeled via join table task_files (keeps 'files' generic).
 --   - ON DELETE behavior mirrors annotations where specified (CASCADE for WorkOrder/PM and options).
+--   - NEW: tasks.previous_value TEXT to allow toggling COMPLETE/restore prior value.
 
 BEGIN;
 
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   task_base_id                 UUID NOT NULL REFERENCES task_bases(id) ON UPDATE CASCADE,  -- NO ACTION/RESTRICT on delete
   notes                        TEXT,
   value                        TEXT,
+  previous_value               TEXT,  -- <--- NEW: stash prior value for toggle/restore
 
   work_order_id                UUID REFERENCES work_order(id) ON UPDATE CASCADE ON DELETE CASCADE,
   preventive_maintenance_id    UUID REFERENCES preventive_maintenances(id) ON UPDATE CASCADE ON DELETE CASCADE
@@ -117,6 +119,7 @@ COMMIT;
 -- DROP INDEX IF EXISTS idx_tasks_work_order;
 -- DROP INDEX IF EXISTS idx_tasks_task_base;
 -- DROP INDEX IF EXISTS idx_tasks_org;
+-- -- If you added previous_value separately later, dropping tasks will remove it too.
 -- DROP TABLE IF EXISTS tasks;
 -- DROP INDEX IF EXISTS idx_task_options_task_base;
 -- DROP TABLE IF EXISTS task_options;

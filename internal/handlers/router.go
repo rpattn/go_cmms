@@ -32,5 +32,9 @@ func RegisterRoutes(mux *chi.Mux, r repo.Repo) {
 
 		sr.Get("/work-order/{workOrderID}", t.GetByWOID)
 		sr.Get("/work-order/{workOrderID}/full", t.GetByWOIDFull)
+		sr.Patch("/{taskID}", t.ToggleComplete)
+		sr.Delete("/{taskID}", t.Delete)
+		sr.Post("/", t.Create)
+		sr.Put("/{taskID}", t.Update)
 	})
 }
