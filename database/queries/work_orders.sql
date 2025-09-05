@@ -1,21 +1,3 @@
--- name: ListWorkOrders :many
--- name: ListWorkOrders :many
-SELECT
-    wo.id,
-    wo.organisation_id AS org_id,
-    wo.title,
-    wo.description,
-    wo.status,
-    wo.priority,
-    wo.created_at,
-    wo.updated_at
-FROM work_order wo
-WHERE wo.organisation_id = $1
-ORDER BY wo.created_at DESC
-LIMIT $2;
-
--- To call this query, use:
--- workOrders, err := db.ListWorkOrders(ctx, 10)
 -- name: ListWorkOrdersPaged :many
 WITH
 params AS (
@@ -46,16 +28,46 @@ archived_eq AS (
   WHERE f->>'field' = 'archived' AND COALESCE(f->>'operation','') IN ('eq','equals')
   LIMIT 1
 ),
+/* NEW: generic text search (title + description) */
+text_cn AS (
+  SELECT NULLIF(btrim(f->>'value'), '') AS term
+  FROM ff
+  WHERE f->>'field' = 'text' AND COALESCE(f->>'operation','') IN ('cn','contains','like')
+  LIMIT 1
+),
 filtered AS (
   SELECT w.*
   FROM work_order w
   LEFT JOIN status_vals sv ON TRUE
   LEFT JOIN archived_eq  a  ON TRUE
+  LEFT JOIN text_cn      t  ON TRUE
   WHERE
     (sv.vals = '{}'::text[] OR w.status = ANY (sv.vals))
     AND (a.archived IS NULL OR w.archived = a.archived)
+    AND (
+      t.term IS NULL
+      OR (
+        w.title ILIKE (
+          '%' ||
+          replace(
+            replace(
+              replace(t.term, E'\\', E'\\\\'),
+            '%', E'\\%'),
+          '_', E'\\_')
+          || '%'
+        ) ESCAPE E'\\'
+        OR w.description ILIKE (
+          '%' ||
+          replace(
+            replace(
+              replace(t.term, E'\\', E'\\\\'),
+            '%', E'\\%'),
+          '_', E'\\_')
+          || '%'
+        ) ESCAPE E'\\'
+      )
+    )
 ),
--- order + count once
 ordered AS (
   SELECT
     f.*,
@@ -70,7 +82,7 @@ bounds AS (
   FROM page
 )
 SELECT
-  o.*  -- includes all work_order cols + total_rows + rn
+  o.*
 FROM ordered o
 JOIN bounds b ON TRUE
 WHERE o.rn > b.off AND o.rn <= b.lim

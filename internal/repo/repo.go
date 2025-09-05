@@ -37,7 +37,6 @@ type Repo interface {
 	SetTOTPSecret(ctx context.Context, uid uuid.UUID, secret, issuer, label string) error
 	GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool)
 
-	ListWorkOrders(ctx context.Context, orgID uuid.UUID, limit int32) ([]models.WorkOrder, error)
 	ListWorkOrdersPaged(ctx context.Context, arg []byte) ([]models.WorkOrder, error)
 }
 
@@ -73,34 +72,6 @@ func (p *pgRepo) ListWorkOrdersPaged(ctx context.Context, arg []byte) ([]models.
 
 		wos = append(wos, wo)
 	}
-	return wos, nil
-}
-
-// ---------------- Work Orders ----------------
-// ListWorkOrders fetches N surface-level work orders for an organisation.
-func (p *pgRepo) ListWorkOrders(ctx context.Context, orgID uuid.UUID, limit int32) ([]models.WorkOrder, error) {
-	rows, err := p.q.ListWorkOrders(ctx, db.ListWorkOrdersParams{
-		OrganisationID: toPgUUID(orgID),
-		Limit:          limit,
-	})
-	if err != nil {
-		return nil, err
-	}
-	//TODO: Get DUE date too in query and map it here
-	wos := make([]models.WorkOrder, len(rows))
-	for i, r := range rows {
-		wos[i] = models.WorkOrder{
-			ID:          toUUID(r.ID),
-			OrgID:       toUUID(r.OrgID),
-			Title:       r.Title,
-			Description: fromText(r.Description),
-			Status:      r.Status,
-			Priority:    r.Priority,
-			CreatedAt:   toTime(r.CreatedAt),
-			UpdatedAt:   toTime(r.UpdatedAt),
-		}
-	}
-
 	return wos, nil
 }
 

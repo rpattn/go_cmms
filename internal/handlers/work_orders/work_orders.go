@@ -75,29 +75,6 @@ func (h *Handler) FilterSearch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
-	//get from org context
-	org, ok := auth.OrgFromContext(r.Context())
-	if !ok {
-		httpserver.JSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "failed to get org from context",
-		})
-		return
-	}
-	wos, err := h.repo.ListWorkOrders(r.Context(), org, 10)
-
-	if err != nil {
-		httpserver.JSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "failed to list work orders",
-		})
-		return
-	}
-	httpserver.JSON(w, http.StatusOK, map[string]any{
-		"message": "search work orders",
-		"content": wos,
-	})
-}
-
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	httpserver.JSON(w, http.StatusCreated, map[string]string{
 		"message": "create work order",

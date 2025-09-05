@@ -11,67 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const listWorkOrders = `-- name: ListWorkOrders :many
-SELECT
-    wo.id,
-    wo.organisation_id AS org_id,
-    wo.title,
-    wo.description,
-    wo.status,
-    wo.priority,
-    wo.created_at,
-    wo.updated_at
-FROM work_order wo
-WHERE wo.organisation_id = $1
-ORDER BY wo.created_at DESC
-LIMIT $2
-`
-
-type ListWorkOrdersParams struct {
-	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
-	Limit          int32       `db:"limit" json:"limit"`
-}
-
-type ListWorkOrdersRow struct {
-	ID          pgtype.UUID        `db:"id" json:"id"`
-	OrgID       pgtype.UUID        `db:"org_id" json:"org_id"`
-	Title       string             `db:"title" json:"title"`
-	Description pgtype.Text        `db:"description" json:"description"`
-	Status      string             `db:"status" json:"status"`
-	Priority    string             `db:"priority" json:"priority"`
-	CreatedAt   pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-func (q *Queries) ListWorkOrders(ctx context.Context, arg ListWorkOrdersParams) ([]ListWorkOrdersRow, error) {
-	rows, err := q.db.Query(ctx, listWorkOrders, arg.OrganisationID, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListWorkOrdersRow
-	for rows.Next() {
-		var i ListWorkOrdersRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrgID,
-			&i.Title,
-			&i.Description,
-			&i.Status,
-			&i.Priority,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listWorkOrdersPaged = `-- name: ListWorkOrdersPaged :many
 WITH
 params AS (
@@ -102,14 +41,44 @@ archived_eq AS (
   WHERE f->>'field' = 'archived' AND COALESCE(f->>'operation','') IN ('eq','equals')
   LIMIT 1
 ),
+text_cn AS (
+  SELECT NULLIF(btrim(f->>'value'), '') AS term
+  FROM ff
+  WHERE f->>'field' = 'text' AND COALESCE(f->>'operation','') IN ('cn','contains','like')
+  LIMIT 1
+),
 filtered AS (
   SELECT w.id, w.organisation_id, w.created_at, w.updated_at, w.created_by_id, w.due_date, w.priority, w.estimated_duration, w.estimated_start_date, w.description, w.title, w.required_signature, w.image_id, w.category_id, w.location_id, w.team_id, w.primary_user_id, w.asset_id, w.custom_id, w.completed_by_id, w.completed_on, w.status, w.signature_id, w.archived, w.parent_request_id, w.feedback, w.parent_preventive_maint_id, w.first_time_to_react
   FROM work_order w
   LEFT JOIN status_vals sv ON TRUE
   LEFT JOIN archived_eq  a  ON TRUE
+  LEFT JOIN text_cn      t  ON TRUE
   WHERE
     (sv.vals = '{}'::text[] OR w.status = ANY (sv.vals))
     AND (a.archived IS NULL OR w.archived = a.archived)
+    AND (
+      t.term IS NULL
+      OR (
+        w.title ILIKE (
+          '%' ||
+          replace(
+            replace(
+              replace(t.term, E'\\', E'\\\\'),
+            '%', E'\\%'),
+          '_', E'\\_')
+          || '%'
+        ) ESCAPE E'\\'
+        OR w.description ILIKE (
+          '%' ||
+          replace(
+            replace(
+              replace(t.term, E'\\', E'\\\\'),
+            '%', E'\\%'),
+          '_', E'\\_')
+          || '%'
+        ) ESCAPE E'\\'
+      )
+    )
 ),
 ordered AS (
   SELECT
@@ -125,7 +94,7 @@ bounds AS (
   FROM page
 )
 SELECT
-  o.id, o.organisation_id, o.created_at, o.updated_at, o.created_by_id, o.due_date, o.priority, o.estimated_duration, o.estimated_start_date, o.description, o.title, o.required_signature, o.image_id, o.category_id, o.location_id, o.team_id, o.primary_user_id, o.asset_id, o.custom_id, o.completed_by_id, o.completed_on, o.status, o.signature_id, o.archived, o.parent_request_id, o.feedback, o.parent_preventive_maint_id, o.first_time_to_react, o.total_rows, o.rn  -- includes all work_order cols + total_rows + rn
+  o.id, o.organisation_id, o.created_at, o.updated_at, o.created_by_id, o.due_date, o.priority, o.estimated_duration, o.estimated_start_date, o.description, o.title, o.required_signature, o.image_id, o.category_id, o.location_id, o.team_id, o.primary_user_id, o.asset_id, o.custom_id, o.completed_by_id, o.completed_on, o.status, o.signature_id, o.archived, o.parent_request_id, o.feedback, o.parent_preventive_maint_id, o.first_time_to_react, o.total_rows, o.rn
 FROM ordered o
 JOIN bounds b ON TRUE
 WHERE o.rn > b.off AND o.rn <= b.lim
@@ -165,9 +134,7 @@ type ListWorkOrdersPagedRow struct {
 	Rn                      int64              `db:"rn" json:"rn"`
 }
 
-// To call this query, use:
-// workOrders, err := db.ListWorkOrders(ctx, 10)
-// order + count once
+// NEW: generic text search (title + description)
 func (q *Queries) ListWorkOrdersPaged(ctx context.Context, dollar_1 []byte) ([]ListWorkOrdersPagedRow, error) {
 	rows, err := q.db.Query(ctx, listWorkOrdersPaged, dollar_1)
 	if err != nil {
