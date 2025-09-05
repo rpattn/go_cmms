@@ -1,8 +1,8 @@
 BEGIN;
 
--- -------------------------------------------------------------------
--- Org & users
--- -------------------------------------------------------------------
+-- ============================================================
+-- Org & Users (CREATE, idempotent)
+-- ============================================================
 INSERT INTO organisations (slug, name, ms_tenant_id)
 VALUES ('north-shore-wind', 'North Shore Wind Farm', NULL)
 ON CONFLICT (slug) DO NOTHING;
@@ -14,12 +14,19 @@ INSERT INTO users (email, name) VALUES
   ('dana.pm@example.com',     'Dana Planner')
 ON CONFLICT (email) DO NOTHING;
 
+-- identities: (provider, subject) should be UNIQUE in your schema
 INSERT INTO identities (user_id, provider, subject)
 SELECT u.id, 'local', u.email
 FROM users u
-WHERE u.email IN ('alice.tech@example.com','bob.elec@example.com','chris.hv@example.com','dana.pm@example.com')
+WHERE u.email IN (
+  'alice.tech@example.com',
+  'bob.elec@example.com',
+  'chris.hv@example.com',
+  'dana.pm@example.com'
+)
 ON CONFLICT (provider, subject) DO NOTHING;
 
+-- org memberships (role assumed to be enum org_role)
 INSERT INTO org_memberships (org_id, user_id, role)
 SELECT o.id, u.id,
   CASE u.email
@@ -29,12 +36,17 @@ SELECT o.id, u.id,
   END::org_role
 FROM organisations o
 JOIN users u ON o.slug = 'north-shore-wind'
-WHERE u.email IN ('alice.tech@example.com','bob.elec@example.com','chris.hv@example.com','dana.pm@example.com')
+WHERE u.email IN (
+  'alice.tech@example.com',
+  'bob.elec@example.com',
+  'chris.hv@example.com',
+  'dana.pm@example.com'
+)
 ON CONFLICT (org_id, user_id) DO NOTHING;
 
--- -------------------------------------------------------------------
--- Lookups (idempotent without UNIQUEs)
--- -------------------------------------------------------------------
+-- ============================================================
+-- Lookups (idempotent)
+-- ============================================================
 INSERT INTO work_order_categories (name)
 SELECT x FROM (VALUES ('Corrective'),('Preventive'),('Inspection'),('Safety')) v(x)
 WHERE NOT EXISTS (SELECT 1 FROM work_order_categories c WHERE c.name = v.x);
@@ -77,7 +89,6 @@ SELECT x FROM (VALUES
 ) v(x)
 WHERE NOT EXISTS (SELECT 1 FROM requests r WHERE r.title = v.x);
 
--- Files: this one kept without a conflict target is fine; or make it NOT EXISTS too
 INSERT INTO files (path, filename)
 SELECT * FROM (VALUES
   ('/uploads/photos','t02-gearbox-temp.jpg'),
@@ -86,17 +97,9 @@ SELECT * FROM (VALUES
 ) v(path, filename)
 WHERE NOT EXISTS (SELECT 1 FROM files f WHERE f.path = v.path AND f.filename = v.filename);
 
-
--- -------------------------------------------------------------------
--- Helper subselects
--- -------------------------------------------------------------------
--- org
--- (used repeatedly below)
--- SELECT id FROM organisations WHERE slug='north-shore-wind'
-
--- -------------------------------------------------------------------
--- 8 Work Orders (use subselects to resolve FKs)
--- -------------------------------------------------------------------
+-- ============================================================
+-- 8 Work Orders
+-- ============================================================
 -- 1
 INSERT INTO work_order (
   organisation_id, created_by_id, title, description, priority, status,
@@ -294,9 +297,7 @@ SELECT
   FALSE
 ON CONFLICT DO NOTHING;
 
--- -------------------------------------------------------------------
--- Junctions
--- -------------------------------------------------------------------
+-- Work order junctions
 INSERT INTO work_order_assigned_to (work_order_id, user_id)
 SELECT w.id, u.id
 FROM work_order w
@@ -339,12 +340,280 @@ JOIN files f ON f.filename = 't01-monthly-inspection.pdf'
 WHERE w.custom_id = 'WO-2025-0001'
 ON CONFLICT DO NOTHING;
 
--- Optional: attach photo to gearbox alarm WO
 INSERT INTO work_order_files (work_order_id, file_id)
 SELECT w.id, f.id
 FROM work_order w
 JOIN files f ON f.filename = 't02-gearbox-temp.jpg'
 WHERE w.custom_id = 'WO-2025-0002'
 ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Tasks demo seed (assumes Tasks schema is already created)
+-- ============================================================
+
+-- Meters
+INSERT INTO meters (name)
+SELECT x FROM (VALUES
+  ('T-02 Gearbox Oil Temperature'),
+  ('T-02 Gearbox Oil Pressure'),
+  ('Substation Busbar Temperature')
+) v(x)
+WHERE NOT EXISTS (SELECT 1 FROM meters m WHERE m.name = v.x);
+
+-- TaskBases
+INSERT INTO task_bases (
+  id, organisation_id, created_at, updated_at, created_by_id,
+  label, task_type, user_id, asset_id, meter_id
+)
+SELECT uuid_generate_v4(),
+       (SELECT id FROM organisations WHERE slug='north-shore-wind'),
+       now(), now(),
+       (SELECT id FROM users WHERE email='dana.pm@example.com'),
+       'Check yaw brakes', 'CHECK',
+       (SELECT id FROM users  WHERE email='alice.tech@example.com'),
+       (SELECT id FROM assets WHERE name='Turbine T-01'),
+       NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM task_bases tb
+  WHERE tb.organisation_id = (SELECT id FROM organisations WHERE slug='north-shore-wind')
+    AND tb.label = 'Check yaw brakes'
+);
+
+INSERT INTO task_bases (
+  id, organisation_id, created_at, updated_at, created_by_id,
+  label, task_type, user_id, asset_id, meter_id
+)
+SELECT uuid_generate_v4(),
+       (SELECT id FROM organisations WHERE slug='north-shore-wind'),
+       now(), now(),
+       (SELECT id FROM users WHERE email='dana.pm@example.com'),
+       'Record gearbox oil temperature', 'MEASURE',
+       (SELECT id FROM users  WHERE email='bob.elec@example.com'),
+       (SELECT id FROM assets WHERE name='Turbine T-02'),
+       (SELECT id FROM meters WHERE name='T-02 Gearbox Oil Temperature')
+WHERE NOT EXISTS (
+  SELECT 1 FROM task_bases tb
+  WHERE tb.organisation_id = (SELECT id FROM organisations WHERE slug='north-shore-wind')
+    AND tb.label = 'Record gearbox oil temperature'
+);
+
+INSERT INTO task_bases (
+  id, organisation_id, created_at, updated_at, created_by_id,
+  label, task_type, user_id, asset_id, meter_id
+)
+SELECT uuid_generate_v4(),
+       (SELECT id FROM organisations WHERE slug='north-shore-wind'),
+       now(), now(),
+       (SELECT id FROM users WHERE email='dana.pm@example.com'),
+       'Verify LOTO tags applied', 'SELECT',
+       (SELECT id FROM users  WHERE email='chris.hv@example.com'),
+       (SELECT id FROM assets WHERE name='MV Switchgear'),
+       NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM task_bases tb
+  WHERE tb.organisation_id = (SELECT id FROM organisations WHERE slug='north-shore-wind')
+    AND tb.label = 'Verify LOTO tags applied'
+);
+
+INSERT INTO task_bases (
+  id, organisation_id, created_at, updated_at, created_by_id,
+  label, task_type, user_id, asset_id, meter_id
+)
+SELECT uuid_generate_v4(),
+       (SELECT id FROM organisations WHERE slug='north-shore-wind'),
+       now(), now(),
+       (SELECT id FROM users WHERE email='dana.pm@example.com'),
+       'Blade leading-edge inspection', 'TEXT',
+       (SELECT id FROM users  WHERE email='alice.tech@example.com'),
+       (SELECT id FROM assets WHERE name='Turbine T-03'),
+       NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM task_bases tb
+  WHERE tb.organisation_id = (SELECT id FROM organisations WHERE slug='north-shore-wind')
+    AND tb.label = 'Blade leading-edge inspection'
+);
+
+INSERT INTO task_bases (
+  id, organisation_id, created_at, updated_at, created_by_id,
+  label, task_type, user_id, asset_id, meter_id
+)
+SELECT uuid_generate_v4(),
+       (SELECT id FROM organisations WHERE slug='north-shore-wind'),
+       now(), now(),
+       (SELECT id FROM users WHERE email='dana.pm@example.com'),
+       'Capture transformer oil leak photo', 'SUBTASK',
+       (SELECT id FROM users  WHERE email='chris.hv@example.com'),
+       (SELECT id FROM assets WHERE name='Main Transformer'),
+       NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM task_bases tb
+  WHERE tb.organisation_id = (SELECT id FROM organisations WHERE slug='north-shore-wind')
+    AND tb.label = 'Capture transformer oil leak photo'
+);
+
+INSERT INTO task_bases (
+  id, organisation_id, created_at, updated_at, created_by_id,
+  label, task_type, user_id, asset_id, meter_id
+)
+SELECT uuid_generate_v4(),
+       (SELECT id FROM organisations WHERE slug='north-shore-wind'),
+       now(), now(),
+       (SELECT id FROM users WHERE email='dana.pm@example.com'),
+       'Take gearbox oil sample', 'SUBTASK',
+       (SELECT id FROM users  WHERE email='bob.elec@example.com'),
+       (SELECT id FROM assets WHERE name='Turbine T-02'),
+       NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM task_bases tb
+  WHERE tb.organisation_id = (SELECT id FROM organisations WHERE slug='north-shore-wind')
+    AND tb.label = 'Take gearbox oil sample'
+);
+
+-- TaskOptions
+INSERT INTO task_options (id, organisation_id, created_at, updated_at, created_by_id, label, task_base_id)
+SELECT uuid_generate_v4(),
+       tb.organisation_id, now(), now(),
+       (SELECT id FROM users WHERE email='dana.pm@example.com'),
+       v.label, tb.id
+FROM (VALUES ('PASS'),('FLAG'),('FAIL')) v(label)
+JOIN task_bases tb ON tb.label='Verify LOTO tags applied'
+WHERE NOT EXISTS (
+  SELECT 1 FROM task_options o WHERE o.task_base_id = tb.id AND o.label = v.label
+);
+
+INSERT INTO task_options (id, organisation_id, created_at, updated_at, created_by_id, label, task_base_id)
+SELECT uuid_generate_v4(),
+       tb.organisation_id, now(), now(),
+       (SELECT id FROM users WHERE email='dana.pm@example.com'),
+       v.label, tb.id
+FROM (VALUES ('OK'),('N/A'),('Defect')) v(label)
+JOIN task_bases tb ON tb.label='Check yaw brakes'
+WHERE NOT EXISTS (
+  SELECT 1 FROM task_options o WHERE o.task_base_id = tb.id AND o.label = v.label
+);
+
+-- Tasks (instances)
+INSERT INTO tasks (id, organisation_id, created_at, updated_at, created_by_id,
+                   task_base_id, notes, value, work_order_id, preventive_maintenance_id)
+SELECT uuid_generate_v4(), tb.organisation_id, now(), now(),
+       (SELECT id FROM users WHERE email='alice.tech@example.com'),
+       tb.id, 'Brakes inspected at nacelle; no glazing.', 'COMPLETE',
+       (SELECT id FROM work_order WHERE custom_id='WO-2025-0001'), NULL
+FROM task_bases tb
+WHERE tb.label='Check yaw brakes'
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.task_base_id = tb.id
+      AND t.work_order_id = (SELECT id FROM work_order WHERE custom_id='WO-2025-0001')
+      AND t.preventive_maintenance_id IS NULL
+  );
+
+INSERT INTO tasks (id, organisation_id, created_at, updated_at, created_by_id,
+                   task_base_id, notes, value, work_order_id, preventive_maintenance_id)
+SELECT uuid_generate_v4(), tb.organisation_id, now(), now(),
+       (SELECT id FROM users WHERE email='bob.elec@example.com'),
+       tb.id, 'Measured at controller trend after 15 min run.', '72 °C',
+       (SELECT id FROM work_order WHERE custom_id='WO-2025-0002'), NULL
+FROM task_bases tb
+WHERE tb.label='Record gearbox oil temperature'
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.task_base_id = tb.id
+      AND t.work_order_id = (SELECT id FROM work_order WHERE custom_id='WO-2025-0002')
+      AND t.preventive_maintenance_id IS NULL
+  );
+
+INSERT INTO tasks (id, organisation_id, created_at, updated_at, created_by_id,
+                   task_base_id, notes, value, work_order_id, preventive_maintenance_id)
+SELECT uuid_generate_v4(), tb.organisation_id, now(), now(),
+       (SELECT id FROM users WHERE email='chris.hv@example.com'),
+       tb.id, 'Locks and tags verified at feeders F1 & F2.', 'PASS',
+       (SELECT id FROM work_order WHERE custom_id='WO-2025-0003'), NULL
+FROM task_bases tb
+WHERE tb.label='Verify LOTO tags applied'
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.task_base_id = tb.id
+      AND t.work_order_id = (SELECT id FROM work_order WHERE custom_id='WO-2025-0003')
+      AND t.preventive_maintenance_id IS NULL
+  );
+
+INSERT INTO tasks (id, organisation_id, created_at, updated_at, created_by_id,
+                   task_base_id, notes, value, work_order_id, preventive_maintenance_id)
+SELECT uuid_generate_v4(), tb.organisation_id, now(), now(),
+       (SELECT id FROM users WHERE email='alice.tech@example.com'),
+       tb.id, 'LE erosion minor on Blade B; monitor next month.', 'COMPLETE',
+       (SELECT id FROM work_order WHERE custom_id='WO-2025-0004'), NULL
+FROM task_bases tb
+WHERE tb.label='Blade leading-edge inspection'
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.task_base_id = tb.id
+      AND t.work_order_id = (SELECT id FROM work_order WHERE custom_id='WO-2025-0004')
+      AND t.preventive_maintenance_id IS NULL
+  );
+
+INSERT INTO tasks (id, organisation_id, created_at, updated_at, created_by_id,
+                   task_base_id, notes, value, work_order_id, preventive_maintenance_id)
+SELECT uuid_generate_v4(), tb.organisation_id, now(), now(),
+       (SELECT id FROM users WHERE email='bob.elec@example.com'),
+       tb.id, 'Sample drawn; shipping to lab tomorrow.', 'IN_PROGRESS',
+       (SELECT id FROM work_order WHERE custom_id='WO-2025-0005'), NULL
+FROM task_bases tb
+WHERE tb.label='Take gearbox oil sample'
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.task_base_id = tb.id
+      AND t.work_order_id = (SELECT id FROM work_order WHERE custom_id='WO-2025-0005')
+      AND t.preventive_maintenance_id IS NULL
+  );
+
+INSERT INTO tasks (id, organisation_id, created_at, updated_at, created_by_id,
+                   task_base_id, notes, value, work_order_id, preventive_maintenance_id)
+SELECT uuid_generate_v4(), tb.organisation_id, now(), now(),
+       (SELECT id FROM users WHERE email='chris.hv@example.com'),
+       tb.id, 'Photo captured near conservator level gauge.', 'COMPLETE',
+       (SELECT id FROM work_order WHERE custom_id='WO-2025-0007'), NULL
+FROM task_bases tb
+WHERE tb.label='Capture transformer oil leak photo'
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.task_base_id = tb.id
+      AND t.work_order_id = (SELECT id FROM work_order WHERE custom_id='WO-2025-0007')
+      AND t.preventive_maintenance_id IS NULL
+  );
+
+-- PM template task
+INSERT INTO tasks (id, organisation_id, created_at, updated_at, created_by_id,
+                   task_base_id, notes, value, work_order_id, preventive_maintenance_id)
+SELECT uuid_generate_v4(), tb.organisation_id, now(), now(),
+       (SELECT id FROM users WHERE email='dana.pm@example.com'),
+       tb.id, 'Default checklist item for monthly inspection.', 'OPEN',
+       NULL, (SELECT id FROM preventive_maintenances WHERE name='Monthly Turbine Inspection')
+FROM task_bases tb
+WHERE tb.label='Check yaw brakes'
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.task_base_id = tb.id
+      AND t.preventive_maintenance_id = (SELECT id FROM preventive_maintenances WHERE name='Monthly Turbine Inspection')
+      AND t.work_order_id IS NULL
+  );
+
+-- Task <-> Files
+INSERT INTO task_files (task_id, file_id)
+SELECT t.id, f.id
+FROM tasks t
+JOIN task_bases tb ON tb.id = t.task_base_id AND tb.label='Record gearbox oil temperature'
+JOIN files f ON f.filename='t02-gearbox-temp.jpg'
+JOIN work_order w ON w.id = t.work_order_id AND w.custom_id='WO-2025-0002'
+WHERE NOT EXISTS (SELECT 1 FROM task_files tf WHERE tf.task_id = t.id AND tf.file_id = f.id);
+
+INSERT INTO task_files (task_id, file_id)
+SELECT t.id, f.id
+FROM tasks t
+JOIN task_bases tb ON tb.id = t.task_base_id AND tb.label='Capture transformer oil leak photo'
+JOIN files f ON f.filename='t02-gearbox-temp.jpg'
+JOIN work_order w ON w.id = t.work_order_id AND w.custom_id='WO-2025-0007'
+WHERE NOT EXISTS (SELECT 1 FROM task_files tf WHERE tf.task_id = t.id AND tf.file_id = f.id);
 
 COMMIT;

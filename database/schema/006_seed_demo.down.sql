@@ -1,32 +1,65 @@
 BEGIN;
 
--- Remove memberships for demo users in demo org
-DELETE FROM org_memberships om
-WHERE om.org_id = (SELECT id FROM organisations WHERE slug='north-shore-wind')
-  AND om.user_id IN (
-    SELECT id FROM users
-    WHERE email IN ('alice.tech@example.com','bob.elec@example.com','chris.hv@example.com','dana.pm@example.com')
+-- ------------------------------------------------------------
+-- Remove task_files attachments
+-- ------------------------------------------------------------
+DELETE FROM task_files tf
+USING tasks t
+JOIN task_bases tb ON tb.id = t.task_base_id
+WHERE tf.task_id = t.id
+  AND tb.label IN (
+    'Record gearbox oil temperature',
+    'Capture transformer oil leak photo'
   );
 
--- Remove demo identities (provider/local+subject=email)
-DELETE FROM identities i
-WHERE i.provider='local'
-  AND i.subject IN ('alice.tech@example.com','bob.elec@example.com','chris.hv@example.com','dana.pm@example.com')
-  AND i.user_id IN (
-    SELECT id FROM users
-    WHERE email IN ('alice.tech@example.com','bob.elec@example.com','chris.hv@example.com','dana.pm@example.com')
+-- ------------------------------------------------------------
+-- Remove seeded tasks
+-- (match by base label and WO/PM to avoid touching other data)
+-- ------------------------------------------------------------
+DELETE FROM tasks t
+USING task_bases tb
+WHERE t.task_base_id = tb.id
+  AND tb.label IN (
+    'Check yaw brakes',
+    'Record gearbox oil temperature',
+    'Verify LOTO tags applied',
+    'Blade leading-edge inspection',
+    'Capture transformer oil leak photo',
+    'Take gearbox oil sample'
   );
 
--- Remove the demo users if no memberships/identities remain
-DELETE FROM users u
-WHERE u.email IN ('alice.tech@example.com','bob.elec@example.com','chris.hv@example.com','dana.pm@example.com')
-  AND NOT EXISTS (SELECT 1 FROM org_memberships om WHERE om.user_id = u.id)
-  AND NOT EXISTS (SELECT 1 FROM identities i WHERE i.user_id = u.id);
+-- ------------------------------------------------------------
+-- Remove seeded task_options
+-- ------------------------------------------------------------
+DELETE FROM task_options o
+USING task_bases tb
+WHERE o.task_base_id = tb.id
+  AND tb.label IN (
+    'Check yaw brakes',
+    'Verify LOTO tags applied'
+  );
 
--- Remove the demo org if unused
-DELETE FROM organisations o
-WHERE o.slug='north-shore-wind'
-  AND NOT EXISTS (SELECT 1 FROM org_memberships om WHERE om.org_id = o.id)
-  AND NOT EXISTS (SELECT 1 FROM work_order w WHERE w.organisation_id = o.id);
+-- ------------------------------------------------------------
+-- Remove seeded task_bases
+-- ------------------------------------------------------------
+DELETE FROM task_bases
+WHERE label IN (
+  'Check yaw brakes',
+  'Record gearbox oil temperature',
+  'Verify LOTO tags applied',
+  'Blade leading-edge inspection',
+  'Capture transformer oil leak photo',
+  'Take gearbox oil sample'
+);
+
+-- ------------------------------------------------------------
+-- Remove seeded meters (only demo ones)
+-- ------------------------------------------------------------
+DELETE FROM meters
+WHERE name IN (
+  'T-02 Gearbox Oil Temperature',
+  'T-02 Gearbox Oil Pressure',
+  'Substation Busbar Temperature'
+);
 
 COMMIT;
