@@ -19,6 +19,13 @@ func New(repo repo.Repo) *Handler {
 	return &Handler{repo: repo}
 }
 
+type SortDirection string
+
+const (
+	DirectionASC  SortDirection = "ASC"
+	DirectionDESC SortDirection = "DESC"
+)
+
 type SearchRequest struct {
 	PageNum      int `json:"pageNum"`
 	PageSize     int `json:"pageSize"`
@@ -28,7 +35,11 @@ type SearchRequest struct {
 		Value     interface{} `json:"value"`
 		Values    []string    `json:"values"`
 		EnumName  string      `json:"enumName"`
-	} `json:"filterFields"`
+	} `json:"filterFields,omitempty"`
+
+	// NEW
+	SortField string        `json:"sortField,omitempty"`
+	Direction SortDirection `json:"direction,omitempty"` // "ASC" | "DESC"
 }
 
 func (h *Handler) FilterSearch(w http.ResponseWriter, r *http.Request) {

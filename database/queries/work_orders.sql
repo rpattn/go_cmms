@@ -28,12 +28,19 @@ archived_eq AS (
   WHERE f->>'field' = 'archived' AND COALESCE(f->>'operation','') IN ('eq','equals')
   LIMIT 1
 ),
-/* NEW: generic text search (title + description) */
+/* generic text search (title + description) */
 text_cn AS (
   SELECT NULLIF(btrim(f->>'value'), '') AS term
   FROM ff
   WHERE f->>'field' = 'text' AND COALESCE(f->>'operation','') IN ('cn','contains','like')
   LIMIT 1
+),
+/* NEW: sort options (whitelisted later) */
+sort AS (
+  SELECT
+    lower(NULLIF(p->>'sortField',''))     AS field,
+    upper(COALESCE(NULLIF(p->>'direction',''),'DESC')) AS dir
+  FROM params
 ),
 filtered AS (
   SELECT w.*
@@ -49,20 +56,12 @@ filtered AS (
       OR (
         w.title ILIKE (
           '%' ||
-          replace(
-            replace(
-              replace(t.term, E'\\', E'\\\\'),
-            '%', E'\\%'),
-          '_', E'\\_')
+          replace(replace(replace(t.term, E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_')
           || '%'
         ) ESCAPE E'\\'
         OR w.description ILIKE (
           '%' ||
-          replace(
-            replace(
-              replace(t.term, E'\\', E'\\\\'),
-            '%', E'\\%'),
-          '_', E'\\_')
+          replace(replace(replace(t.term, E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_')
           || '%'
         ) ESCAPE E'\\'
       )
@@ -72,18 +71,39 @@ ordered AS (
   SELECT
     f.*,
     COUNT(*) OVER()::bigint AS total_rows,
-    ROW_NUMBER() OVER (ORDER BY f.created_at DESC, f.id DESC) AS rn
+    ROW_NUMBER() OVER (
+      ORDER BY
+        /* ASC cases */
+        CASE WHEN s.field='custom_id'  AND s.dir='ASC'  THEN f.custom_id  END ASC  NULLS LAST,
+        CASE WHEN s.field='due_date'   AND s.dir='ASC'  THEN f.due_date   END ASC  NULLS LAST,
+        CASE WHEN s.field='created_at' AND s.dir='ASC'  THEN f.created_at END ASC  NULLS LAST,
+        CASE WHEN s.field='priority'   AND s.dir='ASC'  THEN f.priority   END ASC  NULLS LAST,
+        CASE WHEN s.field='status'     AND s.dir='ASC'  THEN f.status     END ASC  NULLS LAST,
+        CASE WHEN s.field='title'      AND s.dir='ASC'  THEN f.title      END ASC  NULLS LAST,
+
+        /* DESC cases */
+        CASE WHEN s.field='custom_id'  AND s.dir='DESC' THEN f.custom_id  END DESC NULLS LAST,
+        CASE WHEN s.field='due_date'   AND s.dir='DESC' THEN f.due_date   END DESC NULLS LAST,
+        CASE WHEN s.field='created_at' AND s.dir='DESC' THEN f.created_at END DESC NULLS LAST,
+        CASE WHEN s.field='priority'   AND s.dir='DESC' THEN f.priority   END DESC NULLS LAST,
+        CASE WHEN s.field='status'     AND s.dir='DESC' THEN f.status     END DESC NULLS LAST,
+        CASE WHEN s.field='title'      AND s.dir='DESC' THEN f.title      END DESC NULLS LAST,
+
+        /* deterministic fallback when no sort provided or ties */
+        f.created_at DESC, f.id DESC
+    ) AS rn
   FROM filtered f
+  CROSS JOIN sort s
 ),
-bounds AS (
+page_bounds AS (
   SELECT
-    (page_num * page_size)              AS off,
-    (page_num * page_size + page_size)  AS lim
+    (page_num * page_size)             AS off,
+    (page_num * page_size + page_size) AS lim
   FROM page
 )
 SELECT
   o.*
 FROM ordered o
-JOIN bounds b ON TRUE
+JOIN page_bounds b ON TRUE
 WHERE o.rn > b.off AND o.rn <= b.lim
 ORDER BY o.rn;

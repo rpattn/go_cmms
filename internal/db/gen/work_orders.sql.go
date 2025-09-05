@@ -47,6 +47,12 @@ text_cn AS (
   WHERE f->>'field' = 'text' AND COALESCE(f->>'operation','') IN ('cn','contains','like')
   LIMIT 1
 ),
+sort AS (
+  SELECT
+    lower(NULLIF(p->>'sortField',''))     AS field,
+    upper(COALESCE(NULLIF(p->>'direction',''),'DESC')) AS dir
+  FROM params
+),
 filtered AS (
   SELECT w.id, w.organisation_id, w.created_at, w.updated_at, w.created_by_id, w.due_date, w.priority, w.estimated_duration, w.estimated_start_date, w.description, w.title, w.required_signature, w.image_id, w.category_id, w.location_id, w.team_id, w.primary_user_id, w.asset_id, w.custom_id, w.completed_by_id, w.completed_on, w.status, w.signature_id, w.archived, w.parent_request_id, w.feedback, w.parent_preventive_maint_id, w.first_time_to_react
   FROM work_order w
@@ -61,20 +67,12 @@ filtered AS (
       OR (
         w.title ILIKE (
           '%' ||
-          replace(
-            replace(
-              replace(t.term, E'\\', E'\\\\'),
-            '%', E'\\%'),
-          '_', E'\\_')
+          replace(replace(replace(t.term, E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_')
           || '%'
         ) ESCAPE E'\\'
         OR w.description ILIKE (
           '%' ||
-          replace(
-            replace(
-              replace(t.term, E'\\', E'\\\\'),
-            '%', E'\\%'),
-          '_', E'\\_')
+          replace(replace(replace(t.term, E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_')
           || '%'
         ) ESCAPE E'\\'
       )
@@ -84,19 +82,40 @@ ordered AS (
   SELECT
     f.id, f.organisation_id, f.created_at, f.updated_at, f.created_by_id, f.due_date, f.priority, f.estimated_duration, f.estimated_start_date, f.description, f.title, f.required_signature, f.image_id, f.category_id, f.location_id, f.team_id, f.primary_user_id, f.asset_id, f.custom_id, f.completed_by_id, f.completed_on, f.status, f.signature_id, f.archived, f.parent_request_id, f.feedback, f.parent_preventive_maint_id, f.first_time_to_react,
     COUNT(*) OVER()::bigint AS total_rows,
-    ROW_NUMBER() OVER (ORDER BY f.created_at DESC, f.id DESC) AS rn
+    ROW_NUMBER() OVER (
+      ORDER BY
+        /* ASC cases */
+        CASE WHEN s.field='custom_id'  AND s.dir='ASC'  THEN f.custom_id  END ASC  NULLS LAST,
+        CASE WHEN s.field='due_date'   AND s.dir='ASC'  THEN f.due_date   END ASC  NULLS LAST,
+        CASE WHEN s.field='created_at' AND s.dir='ASC'  THEN f.created_at END ASC  NULLS LAST,
+        CASE WHEN s.field='priority'   AND s.dir='ASC'  THEN f.priority   END ASC  NULLS LAST,
+        CASE WHEN s.field='status'     AND s.dir='ASC'  THEN f.status     END ASC  NULLS LAST,
+        CASE WHEN s.field='title'      AND s.dir='ASC'  THEN f.title      END ASC  NULLS LAST,
+
+        /* DESC cases */
+        CASE WHEN s.field='custom_id'  AND s.dir='DESC' THEN f.custom_id  END DESC NULLS LAST,
+        CASE WHEN s.field='due_date'   AND s.dir='DESC' THEN f.due_date   END DESC NULLS LAST,
+        CASE WHEN s.field='created_at' AND s.dir='DESC' THEN f.created_at END DESC NULLS LAST,
+        CASE WHEN s.field='priority'   AND s.dir='DESC' THEN f.priority   END DESC NULLS LAST,
+        CASE WHEN s.field='status'     AND s.dir='DESC' THEN f.status     END DESC NULLS LAST,
+        CASE WHEN s.field='title'      AND s.dir='DESC' THEN f.title      END DESC NULLS LAST,
+
+        /* deterministic fallback when no sort provided or ties */
+        f.created_at DESC, f.id DESC
+    ) AS rn
   FROM filtered f
+  CROSS JOIN sort s
 ),
-bounds AS (
+page_bounds AS (
   SELECT
-    (page_num * page_size)              AS off,
-    (page_num * page_size + page_size)  AS lim
+    (page_num * page_size)             AS off,
+    (page_num * page_size + page_size) AS lim
   FROM page
 )
 SELECT
   o.id, o.organisation_id, o.created_at, o.updated_at, o.created_by_id, o.due_date, o.priority, o.estimated_duration, o.estimated_start_date, o.description, o.title, o.required_signature, o.image_id, o.category_id, o.location_id, o.team_id, o.primary_user_id, o.asset_id, o.custom_id, o.completed_by_id, o.completed_on, o.status, o.signature_id, o.archived, o.parent_request_id, o.feedback, o.parent_preventive_maint_id, o.first_time_to_react, o.total_rows, o.rn
 FROM ordered o
-JOIN bounds b ON TRUE
+JOIN page_bounds b ON TRUE
 WHERE o.rn > b.off AND o.rn <= b.lim
 ORDER BY o.rn
 `
@@ -134,7 +153,8 @@ type ListWorkOrdersPagedRow struct {
 	Rn                      int64              `db:"rn" json:"rn"`
 }
 
-// NEW: generic text search (title + description)
+// generic text search (title + description)
+// NEW: sort options (whitelisted later)
 func (q *Queries) ListWorkOrdersPaged(ctx context.Context, dollar_1 []byte) ([]ListWorkOrdersPagedRow, error) {
 	rows, err := q.db.Query(ctx, listWorkOrdersPaged, dollar_1)
 	if err != nil {

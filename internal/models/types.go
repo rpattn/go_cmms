@@ -18,6 +18,8 @@ type WorkOrder struct {
 	Priority    string    `json:"priority"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	DueDate     time.Time `json:"due_date,omitempty"`
+	CustomID    string    `json:"custom_id,omitempty"`
 }
 
 type OrgRole string

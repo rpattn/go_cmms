@@ -66,6 +66,9 @@ func (p *pgRepo) ListWorkOrdersPaged(ctx context.Context, arg []byte) ([]models.
 			Priority:  r.Priority,               // text
 			CreatedAt: toTime(r.CreatedAt),      // timestamptz
 			UpdatedAt: toTime(r.UpdatedAt),
+			DueDate:   toTime(r.DueDate),    // timestamptz
+			CustomID:  fromText(r.CustomID), // if r.CustomID is sqlc NullString/pgtype.Text
+			// Add other fields as needed
 		}
 		// Nullable fields (description is nullable in your schema)
 		wo.Description = fromText(r.Description) // if r.Description is sqlc NullString/pgtype.Text
