@@ -179,3 +179,15 @@ FROM work_order wo
 WHERE wo.id = $1::uuid
 LIMIT 1;
 -- ---------------------------------------------------------------------------
+
+-- name: ChangeWorkOrderStatus :exec
+UPDATE work_order
+SET
+  status = @status,
+  completed_on = CASE WHEN upper(@status) = 'COMPLETE'
+                      THEN COALESCE(completed_on, now())
+                      ELSE NULL
+                 END,
+  updated_at = now()
+WHERE id = @work_order_id
+  AND organisation_id = @organisation_id;

@@ -43,6 +43,10 @@ type SearchRequest struct {
 	Direction SortDirection `json:"direction,omitempty"` // "ASC" | "DESC"
 }
 
+type StatusRequest struct {
+	Status string `json:"status"` // e.g., "open", "in_progress", "completed"
+}
+
 func (h *Handler) FilterSearch(w http.ResponseWriter, r *http.Request) {
 	// get org from context
 	org, ok := auth.OrgFromContext(r.Context())
@@ -152,5 +156,56 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	httpserver.JSON(w, http.StatusOK, map[string]any{
 		"message": "deleted work order",
 		"id":      id,
+	})
+}
+
+// PATCH /work-orders/{workOrderID}/change-status
+func (h *Handler) ChangeStatus(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "workOrderID")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid work order ID",
+		})
+		return
+	}
+	// get org from context
+	org, ok := auth.OrgFromContext(r.Context())
+	if !ok {
+		httpserver.JSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to get org from context",
+		})
+		return
+	}
+	// parse body into SearchRequest
+	var req StatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid request body",
+		})
+		return
+	}
+
+	// encode to raw []byte for query
+	arg := req.Status
+	if arg == "" {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{
+			"error": "status field is required",
+		})
+		return
+	}
+
+	//Call the sqlc query
+	err = h.repo.ChangeWorkOrderStatus(r.Context(), org, id, arg)
+	if err != nil {
+		httpserver.JSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to change work order status",
+		})
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]any{
+		"message": "changed work order status",
+		"id":      id,
+		"status":  arg,
 	})
 }

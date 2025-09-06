@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const changeWorkOrderStatus = `-- name: ChangeWorkOrderStatus :exec
+
+UPDATE work_order
+SET
+  status = $1,
+  completed_on = CASE WHEN upper($1) = 'COMPLETE'
+                      THEN COALESCE(completed_on, now())
+                      ELSE NULL
+                 END,
+  updated_at = now()
+WHERE id = $2
+  AND organisation_id = $3
+`
+
+type ChangeWorkOrderStatusParams struct {
+	Status         string      `db:"status" json:"status"`
+	WorkOrderID    pgtype.UUID `db:"work_order_id" json:"work_order_id"`
+	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
+}
+
+// ---------------------------------------------------------------------------
+func (q *Queries) ChangeWorkOrderStatus(ctx context.Context, arg ChangeWorkOrderStatusParams) error {
+	_, err := q.db.Exec(ctx, changeWorkOrderStatus, arg.Status, arg.WorkOrderID, arg.OrganisationID)
+	return err
+}
+
 const getWorkOrderDetail = `-- name: GetWorkOrderDetail :one
 SELECT
   jsonb_strip_nulls(

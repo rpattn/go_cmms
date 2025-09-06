@@ -95,6 +95,7 @@ func main() {
 			})
 	})
 
+	// Work orders and tasks routes
 	handlers.RegisterRoutes(mux, r)
 
 	// Serve static files from ./static at /static/*
