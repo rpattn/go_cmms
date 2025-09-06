@@ -2,19 +2,25 @@
 package handlers
 
 import (
-	"yourapp/internal/handlers/tasks"
-	"yourapp/internal/handlers/users"
-	"yourapp/internal/handlers/work_orders"
-	"yourapp/internal/middleware"
-	"yourapp/internal/repo"
+    "yourapp/internal/handlers/tasks"
+    "yourapp/internal/handlers/users"
+    "yourapp/internal/handlers/work_orders"
+    "yourapp/internal/handlers/locations"
+    "yourapp/internal/handlers/teams"
+    "yourapp/internal/handlers/assets"
+    "yourapp/internal/middleware"
+    "yourapp/internal/repo"
 
-	"github.com/go-chi/chi/v5"
+    "github.com/go-chi/chi/v5"
 )
 
 func RegisterRoutes(mux *chi.Mux, r repo.Repo) {
-	h := work_orders.New(r)
-	t := tasks.New(r)
-	u := users.New(r)
+    h := work_orders.New(r)
+    t := tasks.New(r)
+    u := users.New(r)
+    l := locations.New(r)
+    tm := teams.New(r)
+    a := assets.New(r)
 
 	mux.Route("/work-orders", func(sr chi.Router) {
 		// Apply auth to the whole group ONCE
@@ -42,10 +48,31 @@ func RegisterRoutes(mux *chi.Mux, r repo.Repo) {
 		sr.Put("/{taskID}", t.Update)
 	})
 
-	mux.Route("/users", func(sr chi.Router) {
-		// Apply auth to the whole group ONCE
-		sr.Use(middleware.RequireAuth(r))
+    mux.Route("/users", func(sr chi.Router) {
+        // Apply auth to the whole group ONCE
+        sr.Use(middleware.RequireAuth(r))
 
-		sr.Post("/search", u.Search)
-	})
+        sr.Post("/search", u.Search)
+    })
+
+    mux.Route("/locations", func(sr chi.Router) {
+        // Apply auth to the whole group ONCE
+        sr.Use(middleware.RequireAuth(r))
+
+        sr.Post("/search", l.Search)
+    })
+
+    mux.Route("/teams", func(sr chi.Router) {
+        // Apply auth to the whole group ONCE
+        sr.Use(middleware.RequireAuth(r))
+
+        sr.Post("/search", tm.Search)
+    })
+
+    mux.Route("/assets", func(sr chi.Router) {
+        // Apply auth to the whole group ONCE
+        sr.Use(middleware.RequireAuth(r))
+
+        sr.Post("/search", a.Search)
+    })
 }

@@ -32,9 +32,27 @@ const (
 )
 
 type User struct {
-	ID    uuid.UUID
-	Email string
-	Name  string
+    ID    uuid.UUID
+    Email string
+    Name  string
+}
+
+type Location struct {
+    ID        uuid.UUID `json:"id"`
+    Name      string    `json:"name"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+type Team struct {
+    ID        uuid.UUID `json:"id"`
+    Name      string    `json:"name"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+type Asset struct {
+    ID        uuid.UUID `json:"id"`
+    Name      string    `json:"name"`
+    CreatedAt time.Time `json:"created_at"`
 }
 
 var (

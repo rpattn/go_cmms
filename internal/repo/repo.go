@@ -33,8 +33,11 @@ type Repo interface {
 	CreateLocalCredential(ctx context.Context, uid uuid.UUID, username, phc string) error
 	GetLocalCredentialByUsername(ctx context.Context, username string) (models.LocalCredential, models.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error)
-	PickUserOrg(ctx context.Context, uid uuid.UUID) (models.Org, error)
-	SearchUsers(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.User, error)
+    PickUserOrg(ctx context.Context, uid uuid.UUID) (models.Org, error)
+    SearchUsers(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.User, error)
+    SearchLocations(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.Location, error)
+    SearchTeams(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.Team, error)
+    SearchAssets(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.Asset, error)
 
 	UserHasTOTP(ctx context.Context, uid uuid.UUID) bool
 	SetTOTPSecret(ctx context.Context, uid uuid.UUID, secret, issuer, label string) error
@@ -574,6 +577,34 @@ func (p *pgRepo) SearchUsers(ctx context.Context, org_id uuid.UUID, payload []by
 	return users, nil
 }
 
+func (p *pgRepo) SearchLocations(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.Location, error) {
+    params := db.SearchOrgLocationsParams{
+        OrgID:   fromUUID(org_id),
+        Payload: payload,
+    }
+    rows, err := p.q.SearchOrgLocations(ctx, params)
+    if err != nil {
+        return nil, err
+    }
+    if len(rows) == 0 {
+        return []models.Location{}, nil
+    }
+    out := make([]models.Location, 0, len(rows))
+    for _, r := range rows {
+        // r.CreatedAt is pgtype.Timestamptz
+        var createdAt time.Time
+        if r.CreatedAt.Valid {
+            createdAt = r.CreatedAt.Time
+        }
+        out = append(out, models.Location{
+            ID:        r.ID.Bytes,
+            Name:      r.Name,
+            CreatedAt: createdAt,
+        })
+    }
+    return out, nil
+}
+
 func (p *pgRepo) UserHasTOTP(ctx context.Context, uid uuid.UUID) bool {
 	ok, err := p.q.UserHasTOTP(ctx, fromUUID(uid))
 	return err == nil && ok
@@ -589,8 +620,62 @@ func (p *pgRepo) SetTOTPSecret(ctx context.Context, uid uuid.UUID, secret, issue
 }
 
 func (p *pgRepo) GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool) {
-	sec, err := p.q.GetTOTPSecret(ctx, fromUUID(uid))
-	return sec, err == nil
+    sec, err := p.q.GetTOTPSecret(ctx, fromUUID(uid))
+    return sec, err == nil
+}
+
+func (p *pgRepo) SearchTeams(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.Team, error) {
+    params := db.SearchOrgTeamsParams{
+        OrgID:   fromUUID(org_id),
+        Payload: payload,
+    }
+    rows, err := p.q.SearchOrgTeams(ctx, params)
+    if err != nil {
+        return nil, err
+    }
+    if len(rows) == 0 {
+        return []models.Team{}, nil
+    }
+    out := make([]models.Team, 0, len(rows))
+    for _, r := range rows {
+        var createdAt time.Time
+        if r.CreatedAt.Valid {
+            createdAt = r.CreatedAt.Time
+        }
+        out = append(out, models.Team{
+            ID:        r.ID.Bytes,
+            Name:      r.Name,
+            CreatedAt: createdAt,
+        })
+    }
+    return out, nil
+}
+
+func (p *pgRepo) SearchAssets(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.Asset, error) {
+    params := db.SearchOrgAssetsParams{
+        OrgID:   fromUUID(org_id),
+        Payload: payload,
+    }
+    rows, err := p.q.SearchOrgAssets(ctx, params)
+    if err != nil {
+        return nil, err
+    }
+    if len(rows) == 0 {
+        return []models.Asset{}, nil
+    }
+    out := make([]models.Asset, 0, len(rows))
+    for _, r := range rows {
+        var createdAt time.Time
+        if r.CreatedAt.Valid {
+            createdAt = r.CreatedAt.Time
+        }
+        out = append(out, models.Asset{
+            ID:        r.ID.Bytes,
+            Name:      r.Name,
+            CreatedAt: createdAt,
+        })
+    }
+    return out, nil
 }
 
 // ---------------- Helpers ----------------
