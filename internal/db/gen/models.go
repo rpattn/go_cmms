@@ -210,6 +210,12 @@ type WorkOrderCategory struct {
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
+type WorkOrderCounter struct {
+	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
+	Year           int32       `db:"year" json:"year"`
+	NextSeq        int32       `db:"next_seq" json:"next_seq"`
+}
+
 type WorkOrderCustomer struct {
 	WorkOrderID pgtype.UUID `db:"work_order_id" json:"work_order_id"`
 	CustomerID  pgtype.UUID `db:"customer_id" json:"customer_id"`

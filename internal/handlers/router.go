@@ -24,6 +24,7 @@ func RegisterRoutes(mux *chi.Mux, r repo.Repo) {
 		sr.Get("/{workOrderID}", h.GetByID)
 		sr.Put("/{workOrderID}", h.Update)
 		sr.Delete("/{workOrderID}", h.Delete)
+		sr.Patch("/{workOrderID}", h.Modify)
 		sr.Patch("/{workOrderID}/change-status", h.ChangeStatus)
 	})
 

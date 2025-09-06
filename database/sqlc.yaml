@@ -8,6 +8,7 @@ sql:
       - "schema/004_data.up.sql"
       - "schema/005_tasks.up.sql"
       - "schema/006_seed_demo.up.sql"
+      - "schema/007_functions.up.sql"
     queries: "queries"
     engine: "postgresql"
     gen:

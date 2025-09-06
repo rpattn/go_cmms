@@ -329,3 +329,31 @@ func (q *Queries) ListWorkOrdersPaged(ctx context.Context, dollar_1 []byte) ([]L
 	}
 	return items, nil
 }
+
+const updateWorkOrderFromJSON = `-- name: UpdateWorkOrderFromJSON :one
+SELECT public.update_work_order_from_json(
+  $1::uuid,
+  $2::uuid,
+  $3::jsonb,
+  $4::uuid
+)::uuid AS id
+`
+
+type UpdateWorkOrderFromJSONParams struct {
+	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
+	WorkOrderID    pgtype.UUID `db:"work_order_id" json:"work_order_id"`
+	Payload        []byte      `db:"payload" json:"payload"`
+	UpdatedByID    pgtype.UUID `db:"updated_by_id" json:"updated_by_id"`
+}
+
+func (q *Queries) UpdateWorkOrderFromJSON(ctx context.Context, arg UpdateWorkOrderFromJSONParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, updateWorkOrderFromJSON,
+		arg.OrganisationID,
+		arg.WorkOrderID,
+		arg.Payload,
+		arg.UpdatedByID,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}

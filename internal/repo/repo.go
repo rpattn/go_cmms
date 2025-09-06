@@ -43,6 +43,7 @@ type Repo interface {
 	GetWorkOrderDetail(ctx context.Context, id uuid.UUID) (json.RawMessage, error)
 	ChangeWorkOrderStatus(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID, status string) error
 	CreateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, user_id uuid.UUID, payload []byte) (uuid.UUID, error)
+	UpdateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID, user_id uuid.UUID, payload []byte) (uuid.UUID, error)
 
 	// Tasks
 
@@ -229,6 +230,20 @@ func (p *pgRepo) CreateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, 
 		Payload:        payload,
 	}
 	id, err := p.q.CreateWorkOrderFromJSON(ctx, args)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return toUUID(id), nil
+}
+
+func (p *pgRepo) UpdateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID, user_id uuid.UUID, payload []byte) (uuid.UUID, error) {
+	args := db.UpdateWorkOrderFromJSONParams{
+		OrganisationID: fromUUID(org_id),
+		WorkOrderID:    toPgUUID(workOrderID),
+		Payload:        payload,
+		UpdatedByID:    fromUUID(user_id),
+	}
+	id, err := p.q.UpdateWorkOrderFromJSON(ctx, args)
 	if err != nil {
 		return uuid.Nil, err
 	}

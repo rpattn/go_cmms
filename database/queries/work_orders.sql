@@ -199,3 +199,11 @@ SELECT create_work_order_from_json(
   @created_by_id::uuid,
   @payload::jsonb
 )::uuid AS id;
+
+-- name: UpdateWorkOrderFromJSON :one
+SELECT public.update_work_order_from_json(
+  @organisation_id::uuid,
+  @work_order_id::uuid,
+  @payload::jsonb,
+  @updated_by_id::uuid
+)::uuid AS id;

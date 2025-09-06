@@ -164,6 +164,62 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// PATCH /work-orders/{workOrderID}
+func (h *Handler) Modify(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.OrgFromContext(r.Context())
+	if !ok {
+		httpserver.JSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		httpserver.JSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	// Path param
+	idStr := chi.URLParam(r, "workOrderID")
+	woID, err := uuid.Parse(idStr)
+	if err != nil {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid work order ID"})
+		return
+	}
+
+	// Decode patch JSON (empty object {} is OK)
+	defer r.Body.Close()
+	var body map[string]any
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)) // 1MB
+	// dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	if dec.More() {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON (extra content)"})
+		return
+	}
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{"error": "failed to encode payload"})
+		return
+	}
+
+	// Call the sqlc-generated wrapper: SELECT public.update_work_order_from_json(...)::uuid
+	updatedID, err := h.repo.UpdateWorkOrderFromJSON(r.Context(), orgID, woID, user.ID, payload)
+	if err != nil {
+		httpserver.JSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to modify work order: " + err.Error(),
+		})
+		return
+	}
+
+	httpserver.JSON(w, http.StatusOK, map[string]any{
+		"message": "updated work order",
+		"id":      updatedID.String(),
+	})
+}
+
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	// 1. Parse workOrderID from URL
 	idStr := chi.URLParam(r, "workOrderID")
