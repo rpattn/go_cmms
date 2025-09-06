@@ -75,7 +75,15 @@ BEGIN
                                    (payload->>'required_signature')::boolean, false);
 
   -- Foreign keys (accept camel/snake)
-  v_primary_user := NULLIF(COALESCE(payload->>'primary_worker', payload->>'primaryWorker', payload->>'primary_user'), '')::uuid;
+  v_primary_user := NULLIF(
+    COALESCE(
+      payload->>'primary_user',
+      payload->>'primaryUser',
+      payload->>'primary_worker',
+      payload->>'primaryWorker'
+    ),
+    ''
+  )::uuid;
   v_location     := NULLIF(COALESCE(payload->>'location', payload->>'location_id'), '')::uuid;
   v_asset        := NULLIF(COALESCE(payload->>'asset', payload->>'asset_id'), '')::uuid;
 
@@ -209,15 +217,14 @@ DECLARE
   v_exists                BOOLEAN;
 BEGIN
   -- Ensure the work order exists and belongs to the org
-  SELECT TRUE
-  INTO v_exists
-  FROM work_order
-  WHERE id = p_work_order_id AND organisation_id = p_org_id
-  LIMIT 1;
+  SELECT EXISTS (
+    SELECT 1 FROM work_order
+    WHERE id = p_work_order_id AND organisation_id = p_org_id
+  ) INTO v_exists;
 
   IF NOT FOUND OR v_exists IS DISTINCT FROM TRUE THEN
     RAISE EXCEPTION 'work order % not found for organisation %', p_work_order_id, p_org_id
-      USING ERRCODE = 'NO_DATA_FOUND';
+     USING ERRCODE = 'no_data_found';
   END IF;
 
   -- Parse dates if the key is present
