@@ -2,17 +2,17 @@
 package main
 
 import (
-	"context"
-	"log"
-	"net/http"
-	"os"
+    "context"
+    "log/slog"
+    "net/http"
+    "os"
 
 	//"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/go-chi/chi/v5"
-	mux_middleware "github.com/go-chi/chi/v5/middleware"
+    //mux_middleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors" // <-- cors
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -20,26 +20,35 @@ import (
 	"yourapp/internal/config"
 	db "yourapp/internal/db/gen"
 	"yourapp/internal/handlers"
-	"yourapp/internal/middleware"
-	"yourapp/internal/models"
-	"yourapp/internal/repo"
+    "yourapp/internal/middleware"
+    "yourapp/internal/models"
+    "yourapp/internal/repo"
+    "yourapp/internal/logging"
 )
 
 func main() {
-	// --- Load config (config.yaml + env overrides) ---
-	cfg := config.Load()
+    // --- Load config (config.yaml + env overrides) ---
+    cfg := config.Load()
 
-	// --- Connect to Postgres ---
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, cfg.Database.URL)
-	if err != nil {
-		log.Fatalf("db connect error: %v", err)
-	}
-	defer pool.Close()
+    // --- Logger ---
+    // Configure slog from config: logging.level, logging.format
+    logging.Setup(cfg.Logging.Level, cfg.Logging.Format == "json")
 
-	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("db ping error: %v", err)
-	}
+    // --- Connect to Postgres ---
+    ctx := context.Background()
+    slog.Debug("connecting to database")
+    pool, err := pgxpool.New(ctx, cfg.Database.URL)
+    if err != nil {
+        slog.Error("db connect error", "err", err)
+        os.Exit(1)
+    }
+    defer pool.Close()
+
+    if err := pool.Ping(ctx); err != nil {
+        slog.Error("db ping error", "err", err)
+        os.Exit(1)
+    }
+    slog.Debug("database connection ready")
 
 	// sqlc queries + repo wrapper
 	q := db.New(pool)
@@ -51,8 +60,9 @@ func main() {
 	// --- Router ---
 	mux := chi.NewRouter()
 
-	// Simple request logger (logs method, path, status, and duration)
-	mux.Use(mux_middleware.Logger)
+    // Ensure request ID then log requests with slog
+    mux.Use(middleware.RequestID)
+    mux.Use(middleware.SlogRequestLogger)
 
 	// --- CORS middleware ---
 	mux.Use(cors.Handler(cors.Options{
@@ -64,8 +74,8 @@ func main() {
 		MaxAge:           300, // Maximum value not ignored by browsers
 	}))
 
-	// OAuth/OIDC routes
-	log.Printf("Setup providers: %+v\n", providers)
+    // OAuth/OIDC routes
+    slog.Debug("oauth providers configured", "providers", providers)
 	//mux.Get("/auth/{provider}", auth.StartHandler(providers, r))
 	//mux.Get("/auth/{provider}/callback", auth.CallbackHandler(providers, r))
 
@@ -112,8 +122,9 @@ func main() {
 	if v := os.Getenv("PORT"); v != "" {
 		addr = ":" + v
 	}
-	log.Printf("listening on %s (BASE_URL=%s)", addr, cfg.BaseURL)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatal(err)
-	}
+    slog.Info("listening", "addr", addr, "base_url", cfg.BaseURL)
+    if err := http.ListenAndServe(addr, mux); err != nil {
+        slog.Error("server error", "err", err)
+        os.Exit(1)
+    }
 }

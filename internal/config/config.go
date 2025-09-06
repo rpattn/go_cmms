@@ -9,15 +9,19 @@ import (
 )
 
 type Config struct {
-	BaseURL  string `mapstructure:"base_url"`
-	Database struct {
-		URL string `mapstructure:"url"`
-	} `mapstructure:"database"`
-	Microsoft struct {
-		ClientID     string `mapstructure:"client_id"`
-		ClientSecret string `mapstructure:"client_secret"`
-		TenantID     string `mapstructure:"tenant_id"`
-	} `mapstructure:"microsoft"`
+    BaseURL  string `mapstructure:"base_url"`
+    Database struct {
+        URL string `mapstructure:"url"`
+    } `mapstructure:"database"`
+    Logging struct {
+        Level  string `mapstructure:"level"`
+        Format string `mapstructure:"format"`
+    } `mapstructure:"logging"`
+    Microsoft struct {
+        ClientID     string `mapstructure:"client_id"`
+        ClientSecret string `mapstructure:"client_secret"`
+        TenantID     string `mapstructure:"tenant_id"`
+    } `mapstructure:"microsoft"`
 	Google struct {
 		ClientID     string `mapstructure:"client_id"`
 		ClientSecret string `mapstructure:"client_secret"`
@@ -33,7 +37,10 @@ type Config struct {
 }
 
 func Load() Config {
-	viper.SetDefault("microsoft.tenant_id", "organizations")
+    viper.SetDefault("microsoft.tenant_id", "organizations")
+    // Sensible logging defaults
+    viper.SetDefault("logging.level", "info")
+    viper.SetDefault("logging.format", "text")
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -46,8 +53,10 @@ func Load() Config {
 
 	// explicit bindings
 	_ = viper.BindEnv("base_url", "BASE_URL")
-	_ = viper.BindEnv("database.url", "DATABASE_URL")
-	_ = viper.BindEnv("microsoft.client_id", "MICROSOFT_CLIENT_ID")
+    _ = viper.BindEnv("database.url", "DATABASE_URL")
+    _ = viper.BindEnv("logging.level", "LOG_LEVEL")
+    _ = viper.BindEnv("logging.format", "LOG_FORMAT")
+    _ = viper.BindEnv("microsoft.client_id", "MICROSOFT_CLIENT_ID")
 	_ = viper.BindEnv("microsoft.client_secret", "MICROSOFT_CLIENT_SECRET")
 	_ = viper.BindEnv("microsoft.tenant_id", "MICROSOFT_TENANT_ID")
 	_ = viper.BindEnv("google.client_id", "GOOGLE_CLIENT_ID")

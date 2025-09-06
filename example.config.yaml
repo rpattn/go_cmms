@@ -8,6 +8,11 @@ base_url: "http://localhost:8080"
 database:
   url: "postgres://postgres:admin@localhost:5432/go_cmms_test?sslmode=disable"
 
+# Logging configuration
+logging:
+  level: "info"   # debug|info|warn|error
+  format: "text"  # text|json
+
 # Microsoft Entra ID (Azure AD) OAuth2 / OIDC
 microsoft:
   client_id: ""        # e.g. "00000000-1111-2222-3333-444444444444"

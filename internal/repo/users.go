@@ -1,0 +1,146 @@
+package repo
+
+import (
+    "context"
+    "fmt"
+    "log/slog"
+
+    "github.com/google/uuid"
+    "github.com/jackc/pgx/v5/pgtype"
+
+    db "yourapp/internal/db/gen"
+    "yourapp/internal/models"
+)
+
+// ---------------- Users & Identities ----------------
+
+func (p *pgRepo) UpsertUserByVerifiedEmail(ctx context.Context, email string, name string) (models.User, error) {
+    slog.DebugContext(ctx, "UpsertUserByVerifiedEmail", "email", email)
+    u, err := p.q.UpsertUserByVerifiedEmail(ctx, db.UpsertUserByVerifiedEmailParams{
+        Email: email,
+        Name:  toText(name),
+    })
+    if err != nil {
+        slog.ErrorContext(ctx, "UpsertUserByVerifiedEmail failed", "err", err)
+        return models.User{}, err
+    }
+    return models.User{
+        ID:    toUUID(u.ID),
+        Email: u.Email,
+        Name:  fromText(u.Name),
+    }, nil
+}
+
+func (p *pgRepo) LinkIdentity(ctx context.Context, userID uuid.UUID, provider, subject string) error {
+    slog.DebugContext(ctx, "LinkIdentity", "user_id", userID.String(), "provider", provider)
+    return p.q.LinkIdentity(ctx, db.LinkIdentityParams{
+        UserID:   fromUUID(userID),
+        Provider: provider,
+        Subject:  subject,
+    })
+}
+
+// GetUserByUUID fetches a user by their UUID.
+func (p *pgRepo) GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error) {
+    slog.DebugContext(ctx, "GetUserByID", "user_id", id.String())
+    row, err := p.q.GetUserByID(ctx, toPgUUID(id))
+    if err != nil {
+        slog.ErrorContext(ctx, "GetUserByID failed", "err", err)
+        return models.User{}, err
+    }
+    u := models.User{
+        ID:    toUUID(row.ID),
+        Email: row.Email,
+        Name:  fromText(row.Name),
+    }
+    return u, nil
+}
+
+func (p *pgRepo) GetUserWithOrgAndRole(
+    ctx context.Context,
+    uid uuid.UUID,
+    oid uuid.UUID,
+) (models.User, models.Org, models.OrgRole, error) {
+    slog.DebugContext(ctx, "GetUserWithOrgAndRole", "user_id", uid.String(), "org_id", oid.String())
+    params := db.GetUserWithOrgAndRoleParams{
+        Column1: toPgUUID(uid),
+        Column2: toPgUUID(oid),
+    }
+
+    row, err := p.q.GetUserWithOrgAndRole(ctx, params)
+    if err != nil {
+        slog.ErrorContext(ctx, "GetUserWithOrgAndRole failed", "err", err)
+        return models.User{}, models.Org{}, "", err
+    }
+
+    toBool := func(x interface{}) bool {
+        switch v := x.(type) {
+        case bool:
+            return v
+        case pgtype.Bool:
+            return v.Bool
+        case string:
+            return v == "t" || v == "true" || v == "1"
+        case []byte:
+            s := string(v)
+            return s == "t" || s == "true" || s == "1"
+        case int64:
+            return v != 0
+        case nil:
+            return false
+        default:
+            return false
+        }
+    }
+    toString := func(x interface{}) (string, bool) {
+        switch v := x.(type) {
+        case string:
+            return v, v != ""
+        case []byte:
+            if len(v) == 0 {
+                return "", false
+            }
+            return string(v), true
+        case pgtype.Text:
+            if v.Valid {
+                return v.String, true
+            }
+            return "", false
+        case nil:
+            return "", false
+        default:
+            return fmt.Sprintf("%v", v), true
+        }
+    }
+
+    if !toBool(row.UserExists) {
+        return models.User{}, models.Org{}, "", models.ErrUserNotFound
+    }
+    if !toBool(row.OrgExists) {
+        return models.User{}, models.Org{}, "", models.ErrOrgNotFound
+    }
+    if !toBool(row.RoleExists) {
+        return models.User{}, models.Org{}, "", models.ErrRoleNotFound
+    }
+
+    var (
+        uID = row.UserID.Bytes
+        oID = row.OrgID.Bytes
+    )
+    u := models.User{
+        ID:    uID,
+        Email: textOrEmpty(row.UserEmail),
+        Name:  textOrEmpty(row.UserName),
+    }
+    o := models.Org{
+        ID:       oID,
+        Slug:     textOrEmpty(row.OrgSlug),
+        Name:     textOrEmpty(row.OrgName),
+        TenantID: "",
+    }
+
+    roleStr, _ := toString(row.Role)
+    role := models.OrgRole(roleStr)
+
+    return u, o, role, nil
+}
