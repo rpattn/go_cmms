@@ -2,11 +2,11 @@
 package auth
 
 import (
-	"context"
-	"crypto/rand"
-	"crypto/subtle"
-	"encoding/base64"
-	"encoding/json"
+    "context"
+    "crypto/rand"
+    "crypto/subtle"
+    "encoding/base64"
+    "encoding/json"
 	"fmt"
 	"log"
 
@@ -15,8 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"yourapp/internal/models"
-	"yourapp/internal/repo"
+    "yourapp/internal/models"
+    "yourapp/internal/repo"
+    "yourapp/internal/session"
 
 	//"github.com/google/uuid"
 	"github.com/pquerna/otp"
@@ -159,18 +160,22 @@ func LoginHandler(r repo.Repo) http.HandlerFunc {
 
 // POST /auth/logout
 func LogoutHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		http.SetCookie(w, &http.Cookie{
-			Name:     "session",
-			Value:    "",
-			Path:     "/",
-			Expires:  time.Unix(0, 0),
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteLaxMode,
-		})
-		w.WriteHeader(http.StatusNoContent)
-	}
+    return func(w http.ResponseWriter, req *http.Request) {
+        // Best-effort delete server-side session
+        if c, err := req.Cookie("session"); err == nil && c.Value != "" {
+            session.DefaultStore.Delete(c.Value)
+        }
+        http.SetCookie(w, &http.Cookie{
+            Name:     "session",
+            Value:    "",
+            Path:     "/",
+            Expires:  time.Unix(0, 0),
+            HttpOnly: true,
+            Secure:   true,
+            SameSite: http.SameSiteLaxMode,
+        })
+        w.WriteHeader(http.StatusNoContent)
+    }
 }
 
 // GET /auth/mfa/totp/setup  -> returns { otpauth_url, secret }

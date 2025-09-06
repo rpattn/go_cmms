@@ -6,49 +6,54 @@ import (
     "log/slog"
     "net/http"
     "os"
-
-	//"time"
+    "time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/go-chi/chi/v5"
-    //mux_middleware "github.com/go-chi/chi/v5/middleware"
+	//mux_middleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors" // <-- cors
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"yourapp/internal/auth"
 	"yourapp/internal/config"
 	db "yourapp/internal/db/gen"
-	"yourapp/internal/handlers"
+    "yourapp/internal/handlers"
+    "yourapp/internal/logging"
     "yourapp/internal/middleware"
     "yourapp/internal/models"
     "yourapp/internal/repo"
-    "yourapp/internal/logging"
+    "yourapp/internal/session"
 )
 
 func main() {
-    // --- Load config (config.yaml + env overrides) ---
-    cfg := config.Load()
+	// --- Load config (config.yaml + env overrides) ---
+	cfg := config.Load()
 
     // --- Logger ---
     // Configure slog from config: logging.level, logging.format
     logging.Setup(cfg.Logging.Level, cfg.Logging.Format == "json")
 
-    // --- Connect to Postgres ---
-    ctx := context.Background()
-    slog.Debug("connecting to database")
-    pool, err := pgxpool.New(ctx, cfg.Database.URL)
-    if err != nil {
-        slog.Error("db connect error", "err", err)
-        os.Exit(1)
-    }
-    defer pool.Close()
+    // --- Background session sweeper ---
+    interval := cfg.Security.Session.SweeperInterval
+    if interval <= 0 { interval = 5 * time.Minute }
+    go session.DefaultStore.StartSweeper(context.Background(), interval)
 
-    if err := pool.Ping(ctx); err != nil {
-        slog.Error("db ping error", "err", err)
-        os.Exit(1)
-    }
-    slog.Debug("database connection ready")
+	// --- Connect to Postgres ---
+	ctx := context.Background()
+	slog.Debug("connecting to database")
+	pool, err := pgxpool.New(ctx, cfg.Database.URL)
+	if err != nil {
+		slog.Error("db connect error", "err", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		slog.Error("db ping error", "err", err)
+		os.Exit(1)
+	}
+	slog.Debug("database connection ready")
 
 	// sqlc queries + repo wrapper
 	q := db.New(pool)
@@ -60,16 +65,16 @@ func main() {
 	// --- Router ---
 	mux := chi.NewRouter()
 
-    // Ensure request ID then log requests with slog
-    mux.Use(middleware.RequestID(cfg.Security.RequestID.TrustHeader))
-    mux.Use(middleware.EnrichLogger)
-    mux.Use(middleware.SlogRequestLogger)
-    if cfg.Security.RateLimit.Enabled {
-        mux.Use(middleware.RateLimitWith(cfg.Security.RateLimit.RequestsPerMinute, cfg.Security.RateLimit.Burst, cfg.Security.RateLimit.TTL))
-    }
-    if cfg.Security.Denylist.Enabled {
-        mux.Use(middleware.Denylist)
-    }
+	// Ensure request ID then log requests with slog
+	mux.Use(middleware.RequestID(cfg.Security.RequestID.TrustHeader))
+	mux.Use(middleware.EnrichLogger)
+	mux.Use(middleware.SlogRequestLogger)
+	if cfg.Security.RateLimit.Enabled {
+		mux.Use(middleware.RateLimitWith(cfg.Security.RateLimit.RequestsPerMinute, cfg.Security.RateLimit.Burst, cfg.Security.RateLimit.TTL))
+	}
+	if cfg.Security.Denylist.Enabled {
+		mux.Use(middleware.Denylist)
+	}
 
 	// --- CORS middleware ---
 	mux.Use(cors.Handler(cors.Options{
@@ -81,10 +86,10 @@ func main() {
 		MaxAge:           300, // Maximum value not ignored by browsers
 	}))
 
-    // OAuth/OIDC routes
-    slog.Debug("oauth providers configured", "providers", providers)
-	//mux.Get("/auth/{provider}", auth.StartHandler(providers, r))
-	//mux.Get("/auth/{provider}/callback", auth.CallbackHandler(providers, r))
+	// OAuth/OIDC routes
+	slog.Debug("oauth providers configured", "providers", providers)
+	mux.Get("/auth/{provider}", auth.StartHandler(providers, r))
+	mux.Get("/auth/{provider}/callback", auth.CallbackHandler(providers, r))
 
 	// Local auth routes
 	mux.Post("/auth/signup", auth.SignupHandler(r))
@@ -129,9 +134,9 @@ func main() {
 	if v := os.Getenv("PORT"); v != "" {
 		addr = ":" + v
 	}
-    slog.Info("listening", "addr", addr, "base_url", cfg.BaseURL)
-    if err := http.ListenAndServe(addr, mux); err != nil {
-        slog.Error("server error", "err", err)
-        os.Exit(1)
-    }
+	slog.Info("listening", "addr", addr, "base_url", cfg.BaseURL)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		slog.Error("server error", "err", err)
+		os.Exit(1)
+	}
 }

@@ -21,6 +21,9 @@ type Config struct {
         RequestID struct {
             TrustHeader bool `mapstructure:"trust_header"`
         } `mapstructure:"request_id"`
+        Session struct {
+            SweeperInterval time.Duration `mapstructure:"sweeper_interval"`
+        } `mapstructure:"session"`
         RateLimit struct {
             Enabled            bool          `mapstructure:"enabled"`
             RequestsPerMinute  int           `mapstructure:"rpm"`
@@ -57,6 +60,7 @@ func Load() Config {
     viper.SetDefault("logging.format", "text")
     // Security defaults
     viper.SetDefault("security.request_id.trust_header", false)
+    viper.SetDefault("security.session.sweeper_interval", "5m")
     viper.SetDefault("security.rate_limit.enabled", true)
     viper.SetDefault("security.rate_limit.rpm", 120)
     viper.SetDefault("security.rate_limit.burst", 60)
@@ -78,6 +82,7 @@ func Load() Config {
     _ = viper.BindEnv("logging.level", "LOG_LEVEL")
     _ = viper.BindEnv("logging.format", "LOG_FORMAT")
     _ = viper.BindEnv("security.request_id.trust_header", "REQUEST_ID_TRUST_HEADER")
+    _ = viper.BindEnv("security.session.sweeper_interval", "SESSION_SWEEPER_INTERVAL")
     _ = viper.BindEnv("security.rate_limit.enabled", "RATE_LIMIT_ENABLED")
     _ = viper.BindEnv("security.rate_limit.rpm", "RATE_LIMIT_RPM")
     _ = viper.BindEnv("security.rate_limit.burst", "RATE_LIMIT_BURST")

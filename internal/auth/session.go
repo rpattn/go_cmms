@@ -2,15 +2,14 @@
 package auth
 
 import (
-	"context"
-	"encoding/base64"
-	"encoding/json"
-	"net/http"
-	"time"
+    "context"
+    "net/http"
+    "time"
 
-	"yourapp/internal/models"
+    "yourapp/internal/models"
+    "yourapp/internal/session"
 
-	"github.com/google/uuid"
+    "github.com/google/uuid"
 )
 
 type ctxKeyUser struct{}
@@ -24,35 +23,34 @@ var (
 )
 
 func SetSessionCookie(w http.ResponseWriter, s models.Session) {
-	b, _ := json.Marshal(s)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session",
-		Value:    base64.RawStdEncoding.EncodeToString(b),
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		Expires:  s.Expiry,
-	})
+    // Store server-side and set an opaque session id cookie
+    sid := session.DefaultStore.Create(s)
+    http.SetCookie(w, &http.Cookie{
+        Name:     "session",
+        Value:    sid,
+        Path:     "/",
+        HttpOnly: true,
+        Secure:   true,
+        SameSite: http.SameSiteLaxMode,
+        Expires:  s.Expiry,
+    })
 }
 
 func ReadSession(r *http.Request) *models.Session {
-	c, err := r.Cookie("session")
-	if err != nil {
-		return nil
-	}
-	b, err := base64.RawStdEncoding.DecodeString(c.Value)
-	if err != nil {
-		return nil
-	}
-	var s models.Session
-	if json.Unmarshal(b, &s) != nil {
-		return nil
-	}
-	if s.Expiry.Before(time.Now()) {
-		return nil
-	}
-	return &s
+    c, err := r.Cookie("session")
+    if err != nil || c.Value == "" {
+        return nil
+    }
+    sess, ok := session.DefaultStore.Get(c.Value)
+    if !ok {
+        return nil
+    }
+    if !sess.Expiry.IsZero() && sess.Expiry.Before(time.Now()) {
+        return nil
+    }
+    // Return a copy to avoid mutation of store by callers
+    s := sess
+    return &s
 }
 
 func OrgFromContext(ctx context.Context) (uuid.UUID, bool) {
@@ -90,7 +88,9 @@ func GetUserFromContext(ctx context.Context) (*models.User, bool) {
 }
 
 func WithSession(ctx context.Context, s *models.Session) context.Context {
-	return context.WithValue(ctx, ctxKeySession{}, s)
+    // Set under both keys for compatibility
+    ctx = context.WithValue(ctx, ctxKeySession{}, s)
+    return context.WithValue(ctx, ctxSess, s)
 }
 
 func GetSessionFromContext(ctx context.Context) (*models.Session, bool) {

@@ -8,6 +8,7 @@ import (
     "yourapp/internal/handlers/locations"
     "yourapp/internal/handlers/teams"
     "yourapp/internal/handlers/assets"
+    "yourapp/internal/handlers/admin"
     "yourapp/internal/middleware"
     "yourapp/internal/repo"
 
@@ -74,5 +75,11 @@ func RegisterRoutes(mux *chi.Mux, r repo.Repo) {
         sr.Use(middleware.RequireAuth(r))
 
         sr.Post("/search", a.Search)
+    })
+
+    // Admin routes
+    mux.Route("/admin", func(sr chi.Router) {
+        sr.Use(middleware.RequireAuth(r))
+        sr.Get("/sessions", admin.ListSessionsHandler(r))
     })
 }

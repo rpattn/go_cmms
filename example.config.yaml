@@ -24,6 +24,8 @@ security:
     ttl: "30m"            # bucket eviction TTL
   denylist:
     enabled: true          # block denylisted users
+  session:
+    sweeper_interval: "5m" # background cleanup cadence
 
 # Microsoft Entra ID (Azure AD) OAuth2 / OIDC
 microsoft:
