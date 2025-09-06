@@ -42,6 +42,7 @@ type Repo interface {
 	ListWorkOrdersPaged(ctx context.Context, arg []byte) ([]models.WorkOrder, error)
 	GetWorkOrderDetail(ctx context.Context, id uuid.UUID) (json.RawMessage, error)
 	ChangeWorkOrderStatus(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID, status string) error
+	CreateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, user_id uuid.UUID, payload []byte) (uuid.UUID, error)
 
 	// Tasks
 
@@ -219,6 +220,19 @@ func (p *pgRepo) ChangeWorkOrderStatus(ctx context.Context, org_id uuid.UUID, wo
 		Status:         status,
 	}
 	return p.q.ChangeWorkOrderStatus(ctx, args)
+}
+
+func (p *pgRepo) CreateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, user_id uuid.UUID, payload []byte) (uuid.UUID, error) {
+	args := db.CreateWorkOrderFromJSONParams{
+		OrganisationID: fromUUID(org_id),
+		CreatedByID:    fromUUID(user_id),
+		Payload:        payload,
+	}
+	id, err := p.q.CreateWorkOrderFromJSON(ctx, args)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return toUUID(id), nil
 }
 
 func toTime(t pgtype.Timestamptz) time.Time {

@@ -191,3 +191,11 @@ SET
   updated_at = now()
 WHERE id = @work_order_id
   AND organisation_id = @organisation_id;
+
+
+-- name: CreateWorkOrderFromJSON :one
+SELECT create_work_order_from_json(
+  @organisation_id::uuid,
+  @created_by_id::uuid,
+  @payload::jsonb
+)::uuid AS id;

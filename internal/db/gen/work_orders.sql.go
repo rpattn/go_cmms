@@ -37,6 +37,27 @@ func (q *Queries) ChangeWorkOrderStatus(ctx context.Context, arg ChangeWorkOrder
 	return err
 }
 
+const createWorkOrderFromJSON = `-- name: CreateWorkOrderFromJSON :one
+SELECT create_work_order_from_json(
+  $1::uuid,
+  $2::uuid,
+  $3::jsonb
+)::uuid AS id
+`
+
+type CreateWorkOrderFromJSONParams struct {
+	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
+	CreatedByID    pgtype.UUID `db:"created_by_id" json:"created_by_id"`
+	Payload        []byte      `db:"payload" json:"payload"`
+}
+
+func (q *Queries) CreateWorkOrderFromJSON(ctx context.Context, arg CreateWorkOrderFromJSONParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, createWorkOrderFromJSON, arg.OrganisationID, arg.CreatedByID, arg.Payload)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getWorkOrderDetail = `-- name: GetWorkOrderDetail :one
 SELECT
   jsonb_strip_nulls(

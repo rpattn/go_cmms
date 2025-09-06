@@ -4,6 +4,7 @@ package work_orders
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"yourapp/internal/auth"
 	httpserver "yourapp/internal/http"
 	"yourapp/internal/repo"
@@ -92,8 +93,74 @@ func (h *Handler) FilterSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	httpserver.JSON(w, http.StatusCreated, map[string]string{
-		"message": "create work order",
+	// Placeholder implementation
+	// Example Query Parameters:
+	/*
+		{
+			"title": "Title",
+			"priority": "LOW",
+			"description": "Description Here",
+			"dueDate": "2025-09-18",
+			"estimatedStartDate": "2025-09-07",
+			"estimatedDuration": 20,
+			"requiredSignature": false
+			"primary_worker": "user-uuid-here",
+			"location": "location-uuid-here",
+			"asset": "asset-uuid-here",
+			"assigned_to": ["uuid", "uuid"],
+			"customers": ["uuid", "uuid"],
+		}
+	*/
+	orgID, ok := auth.OrgFromContext(r.Context())
+	if !ok {
+		httpserver.JSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	user, ok := auth.UserFromContext(r.Context()) // or however you store user id
+	if !ok {
+		httpserver.JSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	// 1) Decode JSON body
+	defer r.Body.Close()
+	var body map[string]any
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)) // 1MB cap
+	// dec.DisallowUnknownFields() // enable if you want to reject unknown keys
+	if err := dec.Decode(&body); err != nil {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	// Optional: ensure there’s no trailing junk
+	if dec.More() {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON (extra content)"})
+		return
+	}
+
+	// 2) Minimal validation (title required)
+	if t, ok := body["title"].(string); !ok || strings.TrimSpace(t) == "" {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{"error": "title is required"})
+		return
+	}
+
+	// 3) Marshal back to raw JSON for SQL function
+	payload, err := json.Marshal(body)
+	if err != nil {
+		httpserver.JSON(w, http.StatusBadRequest, map[string]string{"error": "failed to encode payload"})
+		return
+	}
+
+	// Call the sqlc query
+	id, err := h.repo.CreateWorkOrderFromJSON(r.Context(), orgID, user.ID, payload)
+	if err != nil {
+		httpserver.JSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to create work order",
+		})
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]any{
+		"message": "created work order",
+		"id":      id,
 	})
 }
 

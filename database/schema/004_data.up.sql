@@ -1,9 +1,4 @@
 -- WorkOrder + WorkOrderBase migration (PostgreSQL, UUIDs via uuid-ossp)
--- Adapts:
---   - OwnUser  -> users(id)
---   - Company  -> organisations(id)
--- Keeps:
---   - All other referenced entities as minimal new tables in this migration.
 
 BEGIN;
 
@@ -63,26 +58,19 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 
 -- ---------------------------------------------------------------------------
--- WorkOrder (fields from WorkOrder + WorkOrderBase + basic audit fields)
--- Notes:
---   - Priority/Status stored as TEXT for flexibility across enum changes.
---   - All user FKs point to users(id).
---   - organisation_id maps the "company" concept.
+-- WorkOrder
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS work_order (
-  -- Identity / org scope
   id                           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   organisation_id              UUID REFERENCES organisations(id) ON UPDATE CASCADE ON DELETE SET NULL,
 
-  -- Basic auditing
   created_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by_id                UUID REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
 
-  -- WorkOrderBase
   due_date                     TIMESTAMPTZ,
-  priority                     TEXT NOT NULL DEFAULT 'NONE',            -- from Priority enum
-  estimated_duration           DOUBLE PRECISION NOT NULL DEFAULT 0,     -- adjust precision if needed
+  priority                     TEXT NOT NULL DEFAULT 'NONE',
+  estimated_duration           DOUBLE PRECISION NOT NULL DEFAULT 0,
   estimated_start_date         TIMESTAMPTZ,
   description                  VARCHAR(10000),
   title                        TEXT NOT NULL,
@@ -94,11 +82,10 @@ CREATE TABLE IF NOT EXISTS work_order (
   primary_user_id              UUID REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
   asset_id                     UUID REFERENCES assets(id) ON UPDATE CASCADE ON DELETE SET NULL,
 
-  -- WorkOrder (concrete)
   custom_id                    TEXT,
   completed_by_id              UUID REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
   completed_on                 TIMESTAMPTZ,
-  status                       TEXT NOT NULL DEFAULT 'OPEN',            -- from Status enum
+  status                       TEXT NOT NULL DEFAULT 'OPEN',
   signature_id                 UUID REFERENCES files(id) ON UPDATE CASCADE ON DELETE SET NULL,
   archived                     BOOLEAN NOT NULL DEFAULT FALSE,
   parent_request_id            UUID REFERENCES requests(id) ON UPDATE CASCADE ON DELETE SET NULL,
@@ -107,30 +94,26 @@ CREATE TABLE IF NOT EXISTS work_order (
   first_time_to_react          TIMESTAMPTZ
 );
 
--- If you want custom_id to be unique *within an organisation*:
--- CREATE UNIQUE INDEX IF NOT EXISTS uq_work_order_org_custom_id
---   ON work_order (organisation_id, custom_id)
---   WHERE custom_id IS NOT NULL;
+-- ✅ Make custom_id unique within an organisation (used by your generator)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_work_order_org_custom_id
+  ON work_order (organisation_id, custom_id)
+  WHERE custom_id IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
--- Many-to-many relations from WorkOrderBase
+-- Many-to-many relations
 -- ---------------------------------------------------------------------------
-
--- assignedTo: WorkOrder <-> Users
 CREATE TABLE IF NOT EXISTS work_order_assigned_to (
   work_order_id  UUID NOT NULL REFERENCES work_order(id) ON UPDATE CASCADE ON DELETE CASCADE,
   user_id        UUID NOT NULL REFERENCES users(id)      ON UPDATE CASCADE ON DELETE CASCADE,
   PRIMARY KEY (work_order_id, user_id)
 );
 
--- customers: WorkOrder <-> Customers
 CREATE TABLE IF NOT EXISTS work_order_customers (
   work_order_id  UUID NOT NULL REFERENCES work_order(id) ON UPDATE CASCADE ON DELETE CASCADE,
   customer_id    UUID NOT NULL REFERENCES customers(id)  ON UPDATE CASCADE ON DELETE CASCADE,
   PRIMARY KEY (work_order_id, customer_id)
 );
 
--- additional files (attachments beyond image/signature): WorkOrder <-> Files
 CREATE TABLE IF NOT EXISTS work_order_files (
   work_order_id  UUID NOT NULL REFERENCES work_order(id) ON UPDATE CASCADE ON DELETE CASCADE,
   file_id        UUID NOT NULL REFERENCES files(id)      ON UPDATE CASCADE ON DELETE CASCADE,
@@ -155,12 +138,46 @@ CREATE INDEX IF NOT EXISTS idx_work_order_location          ON work_order (locat
 CREATE INDEX IF NOT EXISTS idx_work_order_category          ON work_order (category_id);
 CREATE INDEX IF NOT EXISTS idx_work_order_asset             ON work_order (asset_id);
 
+-- ---------------------------------------------------------------------------
+-- 🚀 Per-org, per-year counter table for custom_id generation
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS work_order_counters (
+  organisation_id UUID NOT NULL,
+  year            INTEGER NOT NULL,
+  next_seq        INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (organisation_id, year)
+);
+
+-- Safety net unique index
+CREATE UNIQUE INDEX IF NOT EXISTS uq_work_order_org_custom_id
+  ON work_order (organisation_id, custom_id)
+  WHERE custom_id IS NOT NULL;
+
+-- Backfill counters from existing custom_id values like 'WO-YYYY-NNNN'
+WITH wo AS (
+  SELECT
+    organisation_id,
+    split_part(custom_id,'-',2)::int AS year,
+    split_part(custom_id,'-',3)::int AS seq
+  FROM work_order
+  WHERE custom_id ~ '^WO-\d{4}-\d{4}$'
+)
+INSERT INTO work_order_counters (organisation_id, year, next_seq)
+SELECT organisation_id, year, MAX(seq) + 1
+FROM wo
+GROUP BY organisation_id, year
+ON CONFLICT (organisation_id, year)
+DO UPDATE
+SET next_seq = GREATEST(work_order_counters.next_seq, EXCLUDED.next_seq);
+
 COMMIT;
 
 -- ---------------------------------------------------------------------------
 -- Down migration (drop in reverse dependency order)
 -- ---------------------------------------------------------------------------
 -- BEGIN;
+-- DROP TABLE IF EXISTS work_order_counters;
+-- DROP INDEX IF EXISTS uq_work_order_org_custom_id;
 -- DROP TABLE IF EXISTS work_order_files;
 -- DROP TABLE IF EXISTS work_order_customers;
 -- DROP TABLE IF EXISTS work_order_assigned_to;
@@ -188,4 +205,3 @@ COMMIT;
 -- DROP TABLE IF EXISTS requests;
 -- DROP TABLE IF EXISTS files;
 -- COMMIT;
--- Note: organisations and users tables are assumed to exist already.
