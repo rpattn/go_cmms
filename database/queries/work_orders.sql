@@ -165,9 +165,18 @@ SELECT
                                    FROM preventive_maintenances pm WHERE pm.id = wo.parent_preventive_maint_id),
 
       'assigned_to',              COALESCE(
-                                     (SELECT jsonb_agg(jsonb_build_object('user_id', x.user_id))
-                                      FROM work_order_assigned_to x
-                                      WHERE x.work_order_id = wo.id),
+                                     (
+                                       SELECT jsonb_agg(
+                                         jsonb_build_object(
+                                           'user_id', x.user_id,
+                                           'name',    u.name,
+                                           'email',   u.email
+                                         )
+                                       )
+                                       FROM work_order_assigned_to x
+                                       JOIN users u ON u.id = x.user_id
+                                       WHERE x.work_order_id = wo.id
+                                     ),
                                      '[]'::jsonb
                                    ),
 
