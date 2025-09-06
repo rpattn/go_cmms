@@ -134,6 +134,17 @@ SELECT
       'feedback',                 wo.feedback,
       'first_time_to_react',      wo.first_time_to_react,
 
+      -- NEW: primary worker (object with id + name)
+      'primary_worker', (
+        SELECT jsonb_build_object(
+          'id', u.id,
+          'name', u.name,
+          'email', u.email
+        )
+        FROM users u
+        WHERE u.id = wo.primary_user_id
+      ),
+
       'image',                    (SELECT jsonb_build_object('id', fimg.id, 'filename', fimg.filename, 'path', fimg.path, 'created_at', fimg.created_at)
                                    FROM files fimg WHERE fimg.id = wo.image_id),
       'signature',                (SELECT jsonb_build_object('id', fsig.id, 'filename', fsig.filename, 'path', fsig.path, 'created_at', fsig.created_at)
