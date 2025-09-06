@@ -34,6 +34,7 @@ type Repo interface {
 	GetLocalCredentialByUsername(ctx context.Context, username string) (models.LocalCredential, models.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error)
 	PickUserOrg(ctx context.Context, uid uuid.UUID) (models.Org, error)
+	SearchUsers(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.User, error)
 
 	UserHasTOTP(ctx context.Context, uid uuid.UUID) bool
 	SetTOTPSecret(ctx context.Context, uid uuid.UUID, secret, issuer, label string) error
@@ -546,6 +547,31 @@ func (p *pgRepo) PickUserOrg(ctx context.Context, uid uuid.UUID) (models.Org, er
 		Name:     o.Name,
 		TenantID: fromText(o.MsTenantID),
 	}, nil
+}
+
+func (p *pgRepo) SearchUsers(ctx context.Context, org_id uuid.UUID, payload []byte) ([]models.User, error) {
+	params := db.SearchOrgUsersParams{
+		OrgID:   fromUUID(org_id),
+		Payload: payload,
+	}
+	rows, err := p.q.SearchOrgUsers(ctx, params)
+	if err != nil {
+		fmt.Printf("SearchUsers error: %v\n", err)
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return []models.User{}, nil
+	}
+	users := make([]models.User, 0, len(rows))
+	for _, r := range rows {
+		u := models.User{
+			ID:    toUUID(r.ID),
+			Email: r.Email,
+			Name:  r.Name,
+		}
+		users = append(users, u)
+	}
+	return users, nil
 }
 
 func (p *pgRepo) UserHasTOTP(ctx context.Context, uid uuid.UUID) bool {

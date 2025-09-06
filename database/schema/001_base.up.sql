@@ -46,3 +46,10 @@ CREATE TABLE idp_group_role_mappings (
 
 CREATE INDEX ON identities (user_id);
 CREATE INDEX ON org_memberships (user_id);
+
+-- Optional but recommended for fast ILIKE '%...%' searches
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- GIN trigram indexes to speed up cn/sw/ew on email and name
+CREATE INDEX IF NOT EXISTS users_email_trgm_idx ON users USING gin (email gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS users_name_trgm_idx  ON users USING gin (name  gin_trgm_ops);

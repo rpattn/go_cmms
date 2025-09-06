@@ -330,11 +330,10 @@ $$;
 
 -- Search users in an organisation using a JSON payload (see example below).
 -- The function returns paginated rows plus total_count for the full result set.
-CREATE OR REPLACE FUNCTION public.search_org_users(
+CREATE OR REPLACE FUNCTION public.search_org_users_full(
   p_org_id   uuid,
   p_payload  jsonb
-)
-RETURNS TABLE (
+) RETURNS TABLE (
   id          uuid,
   email       text,
   name        text,

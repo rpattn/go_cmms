@@ -2,14 +2,9 @@ version: "2"
 
 sql:
   - schema:
-      - "schema/001_base.up.sql"
-      - "schema/002_local_auth.up.sql"
-      - "schema/003_seed_demo.up.sql"
-      - "schema/004_data.up.sql"
-      - "schema/005_tasks.up.sql"
-      - "schema/006_seed_demo.up.sql"
-      - "schema/007_functions.up.sql"
-    queries: "queries"
+      - schema/*.up.sql          # tables, types, indexes
+    queries: 
+      - queries/*.sql            # all your .sql query files
     engine: "postgresql"
     gen:
       go:

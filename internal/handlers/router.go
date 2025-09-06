@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"yourapp/internal/handlers/tasks"
+	"yourapp/internal/handlers/users"
 	"yourapp/internal/handlers/work_orders"
 	"yourapp/internal/middleware"
 	"yourapp/internal/repo"
@@ -13,6 +14,7 @@ import (
 func RegisterRoutes(mux *chi.Mux, r repo.Repo) {
 	h := work_orders.New(r)
 	t := tasks.New(r)
+	u := users.New(r)
 
 	mux.Route("/work-orders", func(sr chi.Router) {
 		// Apply auth to the whole group ONCE
@@ -38,5 +40,12 @@ func RegisterRoutes(mux *chi.Mux, r repo.Repo) {
 		sr.Delete("/{taskID}", t.Delete)
 		sr.Post("/", t.Create)
 		sr.Put("/{taskID}", t.Update)
+	})
+
+	mux.Route("/users", func(sr chi.Router) {
+		// Apply auth to the whole group ONCE
+		sr.Use(middleware.RequireAuth(r))
+
+		sr.Post("/search", u.Search)
 	})
 }
