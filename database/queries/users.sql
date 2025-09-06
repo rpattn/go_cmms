@@ -50,3 +50,6 @@ LEFT JOIN o ON TRUE
 LEFT JOIN m ON TRUE
 LIMIT 1;
 
+
+-- name: SearchOrgUsers :many
+SELECT * FROM public.search_org_users($1::uuid, $2::jsonb);

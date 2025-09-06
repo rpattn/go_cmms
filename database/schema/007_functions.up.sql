@@ -327,3 +327,123 @@ BEGIN
   RETURN p_work_order_id;
 END;
 $$;
+
+-- Search users in an organisation using a JSON payload (see example below).
+-- The function returns paginated rows plus total_count for the full result set.
+CREATE OR REPLACE FUNCTION public.search_org_users(
+  p_org_id   uuid,
+  p_payload  jsonb
+)
+RETURNS TABLE (
+  id          uuid,
+  email       text,
+  name        text,
+  created_at  timestamptz,
+  total_count bigint
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_page_num   int  := COALESCE((p_payload->>'pageNum')::int, 0);
+  v_page_size  int  := COALESCE((p_payload->>'pageSize')::int, 10);
+  v_filters    jsonb := COALESCE(p_payload->'filterFields', '[]'::jsonb);
+
+  v_limit      int;
+  v_offset     int;
+
+  v_sql        text;
+  v_group      jsonb;
+  v_alt        jsonb;
+
+  v_field      text;
+  v_col        text;
+  v_op         text;
+  v_val        text;
+
+  v_group_sql  text;
+  v_cond_sql   text;
+BEGIN
+  v_page_size := GREATEST(1, LEAST(v_page_size, 100));
+  v_limit  := v_page_size;
+  v_offset := GREATEST(0, v_page_num) * v_page_size;
+
+  v_sql := '
+    SELECT u.id, u.email, u.name, u.created_at,
+           COUNT(*) OVER() AS total_count
+    FROM users u
+    JOIN org_memberships m ON m.user_id = u.id
+    WHERE m.org_id = $1
+  ';
+
+  FOR v_group IN
+    SELECT elem FROM jsonb_array_elements(v_filters) AS elem
+  LOOP
+    v_group_sql := NULL;
+
+    v_field := COALESCE(v_group->>'field', '');
+    v_col := CASE lower(v_field)
+               WHEN 'email'     THEN 'u.email'
+               WHEN 'name'      THEN 'u.name'
+               WHEN 'firstname' THEN 'u.name'
+               WHEN 'lastname'  THEN 'u.name'
+               ELSE NULL
+             END;
+
+    v_op  := COALESCE(v_group->>'operation', 'eq');
+    v_val := COALESCE(v_group->>'value', '');
+
+    IF v_col IS NOT NULL THEN
+      v_cond_sql :=
+        CASE lower(v_op)
+          WHEN 'eq' THEN format('%s = %L', v_col, v_val)
+          WHEN 'cn' THEN format('%s ILIKE ''%%'' || %L || ''%%''', v_col, v_val)
+          WHEN 'sw' THEN format('%s ILIKE %L || ''%%''', v_col, v_val)
+          WHEN 'ew' THEN format('%s ILIKE ''%%'' || %L', v_col, v_val)
+          ELSE       format('%s = %L', v_col, v_val)
+        END;
+      v_group_sql := v_cond_sql;
+    END IF;
+
+    FOR v_alt IN
+      SELECT elem FROM jsonb_array_elements(COALESCE(v_group->'alternatives','[]'::jsonb)) AS elem
+    LOOP
+      v_field := COALESCE(v_alt->>'field', '');
+      v_col := CASE lower(v_field)
+                 WHEN 'email'     THEN 'u.email'
+                 WHEN 'name'      THEN 'u.name'
+                 WHEN 'firstname' THEN 'u.name'
+                 WHEN 'lastname'  THEN 'u.name'
+                 ELSE NULL
+               END;
+      IF v_col IS NULL THEN CONTINUE; END IF;
+
+      v_op  := COALESCE(v_alt->>'operation', 'eq');
+      v_val := COALESCE(v_alt->>'value', '');
+
+      v_cond_sql :=
+        CASE lower(v_op)
+          WHEN 'eq' THEN format('%s = %L', v_col, v_val)
+          WHEN 'cn' THEN format('%s ILIKE ''%%'' || %L || ''%%''', v_col, v_val)
+          WHEN 'sw' THEN format('%s ILIKE %L || ''%%''', v_col, v_val)
+          WHEN 'ew' THEN format('%s ILIKE ''%%'' || %L', v_col, v_val)
+          ELSE       format('%s = %L', v_col, v_val)
+        END;
+
+      IF v_group_sql IS NULL THEN
+        v_group_sql := v_cond_sql;
+      ELSE
+        v_group_sql := v_group_sql || ' OR ' || v_cond_sql;
+      END IF;
+    END LOOP;
+
+    IF v_group_sql IS NOT NULL THEN
+      v_sql := v_sql || ' AND (' || v_group_sql || ')';
+    END IF;
+  END LOOP;
+
+  v_sql := v_sql || ' ORDER BY u.created_at DESC LIMIT $2 OFFSET $3';
+
+  RETURN QUERY EXECUTE v_sql
+    USING p_org_id, v_limit, v_offset;
+END;
+$$;

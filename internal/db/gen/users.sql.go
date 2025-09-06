@@ -119,6 +119,35 @@ func (q *Queries) GetUserWithOrgAndRole(ctx context.Context, arg GetUserWithOrgA
 	return i, err
 }
 
+const searchOrgUsers = `-- name: SearchOrgUsers :many
+SELECT search_org_users FROM public.search_org_users($1::uuid, $2::jsonb)
+`
+
+type SearchOrgUsersParams struct {
+	Column1 pgtype.UUID `db:"column_1" json:"column_1"`
+	Column2 []byte      `db:"column_2" json:"column_2"`
+}
+
+func (q *Queries) SearchOrgUsers(ctx context.Context, arg SearchOrgUsersParams) ([]interface{}, error) {
+	rows, err := q.db.Query(ctx, searchOrgUsers, arg.Column1, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []interface{}
+	for rows.Next() {
+		var search_org_users interface{}
+		if err := rows.Scan(&search_org_users); err != nil {
+			return nil, err
+		}
+		items = append(items, search_org_users)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertUserByVerifiedEmail = `-- name: UpsertUserByVerifiedEmail :one
 INSERT INTO users (email, name)
 VALUES ($1, $2)
