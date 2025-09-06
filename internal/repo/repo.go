@@ -43,6 +43,7 @@ type Repo interface {
     ChangeWorkOrderStatus(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID, status string) error
     CreateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, user_id uuid.UUID, payload []byte) (uuid.UUID, error)
     UpdateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID, user_id uuid.UUID, payload []byte) (uuid.UUID, error)
+    DeleteWorkOrderByID(ctx context.Context, org_id, workOrderID uuid.UUID) error
 
     // Tasks
     GetTasksByWorkOrderID(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID) ([]db.GetTasksByWorkOrderIDRow, error)
@@ -56,4 +57,3 @@ type Repo interface {
 type pgRepo struct{ q *db.Queries }
 
 func New(q *db.Queries) Repo { return &pgRepo{q: q} }
-

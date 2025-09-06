@@ -229,3 +229,8 @@ SELECT public.update_work_order_from_json(
   @payload::jsonb,
   @updated_by_id::uuid
 )::uuid AS id;
+
+-- name: DeleteWorkOrderByID :exec
+DELETE FROM work_order
+WHERE organisation_id = @organisation_id
+  AND id = @id;

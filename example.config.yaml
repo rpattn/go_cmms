@@ -26,6 +26,10 @@ security:
     enabled: true          # block denylisted users
   session:
     sweeper_interval: "5m" # background cleanup cadence
+    cookie_secure: false    # in dev over http, set false; in prod behind https, set true
+    same_site: "lax"        # lax|none|strict (none requires cookie_secure: true)
+  mfa:
+    local_required: false  # require TOTP for local username/password accounts
 
 # Microsoft Entra ID (Azure AD) OAuth2 / OIDC
 microsoft:

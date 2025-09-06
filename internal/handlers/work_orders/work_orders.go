@@ -274,12 +274,31 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /work-orders/{workOrderID}
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "workOrderID")
+    // Org-scoped delete
+    orgID, ok := auth.OrgFromContext(r.Context())
+    if !ok {
+        httpserver.JSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+        return
+    }
 
-	httpserver.JSON(w, http.StatusOK, map[string]any{
-		"message": "deleted work order",
-		"id":      id,
-	})
+    // Parse path param
+    idStr := chi.URLParam(r, "workOrderID")
+    woID, err := uuid.Parse(idStr)
+    if err != nil {
+        httpserver.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid work order ID"})
+        return
+    }
+
+    // Delegate to repo (org scoped)
+    if err := h.repo.DeleteWorkOrderByID(r.Context(), orgID, woID); err != nil {
+        httpserver.JSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete work order"})
+        return
+    }
+
+    httpserver.JSON(w, http.StatusOK, map[string]any{
+        "message": "work order deleted",
+        "id":      woID,
+    })
 }
 
 // PATCH /work-orders/{workOrderID}/change-status

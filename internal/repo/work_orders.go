@@ -130,3 +130,12 @@ func (p *pgRepo) UpdateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, 
     }
     return toUUID(id), nil
 }
+
+func (p *pgRepo) DeleteWorkOrderByID(ctx context.Context, org_id, workOrderID uuid.UUID) error {
+    slog.DebugContext(ctx, "DeleteWorkOrderByID", "org_id", org_id.String(), "work_order_id", workOrderID.String())
+    args := db.DeleteWorkOrderByIDParams{
+        OrganisationID: fromUUID(org_id),
+        ID:             toPgUUID(workOrderID),
+    }
+    return p.q.DeleteWorkOrderByID(ctx, args)
+}

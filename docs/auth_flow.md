@@ -1,0 +1,168 @@
+# Auth Flow and Endpoints (Frontend Guide)
+
+This document explains how to integrate the frontend with the server’s authentication, sessions, and MFA (TOTP) flows. It includes endpoints, request/response shapes, and UX guidance.
+
+## Overview
+
+- Two auth modes:
+  - Local username/password (optional app‑side TOTP).
+  - Social/OIDC sign‑in (Microsoft, Google, GitHub). App does not enforce TOTP after OIDC; rely on IdP MFA.
+- Sessions are opaque: a `session` cookie holds only a random id; the server stores session data.
+- If `security.mfa.local_required=true`, local users must enroll TOTP before using most routes.
+- Request logging and rate limiting are enabled; responses may include standard HTTP errors (401, 403, 429).
+
+## Config Highlights
+
+- `logging.level`, `logging.format` (text|json)
+- `security.request_id.trust_header` → reads `X-Request-ID` if true; a request id is returned in responses.
+- `security.mfa.local_required` → require TOTP for local users across the app.
+- `security.rate_limit.*` → RPM, burst, TTL; returns 429 when exceeded.
+- `security.session.sweeper_interval` → background cleanup cadence (e.g., `5m`).
+
+## Sessions
+
+- Cookie name: `session` (HttpOnly, SameSite=Lax, Secure=true).
+- Server maintains session data: `user_id`, `active_org`, `provider`, `expiry`.
+- Logout clears cookie and server session.
+
+### Endpoint: POST `/auth/logout`
+
+- Request: send with credentials (cookie).
+- Response: 204 No Content.
+
+## Local Auth (username/password)
+
+### Endpoint: POST `/auth/signup`
+
+Body
+
+```json
+{ "email": "user@example.com", "username": "user", "name": "User Name", "password": "****", "org_slug": "acme" }
+```
+
+Response
+
+- 201 Created on success; sets `session` cookie.
+
+### Endpoint: POST `/auth/login`
+
+Body
+
+```json
+{ "username": "user", "password": "****", "totp_code": "123456" }
+```
+
+Behavior
+
+- If user has TOTP enabled, `totp_code` is required; otherwise 401.
+- If `security.mfa.local_required=true` and the user has no TOTP yet:
+  - Login succeeds (session issued), but most routes are blocked until TOTP setup.
+  - Browser requests get redirected to `/static/mfa/index.html` when hitting blocked routes.
+  - API requests receive `403 {"error":"mfa_required"}`.
+
+## TOTP (MFA) for Local Accounts
+
+Used only for local users; not enforced for OIDC providers.
+
+### Endpoint: GET `/auth/mfa/totp/setup`
+
+- Requires a valid session cookie.
+- Returns JSON with the secret and an `otpauth://` URL for authenticator apps.
+
+Response
+
+```json
+{ "secret": "BASE32SECRET", "otpauth_url": "otpauth://totp/YourApp:label?..." }
+```
+
+### Endpoint: POST `/auth/mfa/totp/verify`
+
+Body
+
+```json
+{ "code": "123456" }
+```
+
+Response
+
+- 200 OK when the code matches; user remains logged in; subsequent requests are allowed.
+- 400/401 on error.
+
+### Built-in Setup Page (Browser)
+
+- When the Accept header includes `text/html`, blocked requests are redirected to `/static/mfa/index.html`.
+- This page:
+  - Calls `/auth/mfa/totp/setup`, shows the secret and otpauth URL.
+  - Posts the code to `/auth/mfa/totp/verify`.
+  - Redirects to `/` on success.
+
+## OIDC / Social Sign-In (Microsoft, Google, GitHub)
+
+### Endpoint: GET `/auth/{provider}`
+
+- Providers: `microsoft`, `google`, `github`.
+- Redirects to provider authorization page.
+
+### Endpoint: GET `/auth/{provider}/callback`
+
+- Handles state/nonce verification, token exchange, identity mapping, user upsert, and org resolution.
+- On success: issues a session cookie and redirects to an app page (e.g., `/orgs/{slug}/projects`).
+- App does not enforce TOTP after OIDC sign-in (rely on IdP MFA).
+
+## Current User and Authorization
+
+### Endpoint: GET `/auth/me`
+
+Response (example)
+
+```json
+{ "email": "user@example.com", "name": "User Name", "org": "acme", "role": "Admin", "provider": "google" }
+```
+
+Protected routes require a valid session; missing/invalid session yields 401.
+Role-protected routes return 403 when role is insufficient.
+
+## Request Patterns (Frontend)
+
+- Always send requests with credentials (cookies): `fetch(url, { credentials: 'include' })`.
+- Handle common errors:
+  - 401 Unauthorized: redirect to login.
+  - 403 with JSON `{ "error": "mfa_required" }`: redirect to `/static/mfa/index.html`.
+  - 429 Too Many Requests: backoff and retry later.
+- Include/propagate a `X-Request-ID` if you manage correlation; server also returns one.
+
+## Example Flows
+
+### Local Login with TOTP Required
+
+1. POST `/auth/login` with username/password.
+2. If you get 401 with message about MFA: retry with `totp_code`.
+3. If MFA is globally required and user is not enrolled:
+   - Navigations to app routes will redirect to `/static/mfa/index.html`.
+   - Complete setup and verification.
+   - Continue to the app.
+
+### Microsoft/Google/GitHub Sign-In
+
+1. Navigate to `/auth/{provider}`.
+2. After consent, callback sets the session and redirects into the app.
+3. Call `/auth/me` to hydrate the frontend session state.
+
+## Admin Sessions (Troubleshooting)
+
+### Endpoint: GET `/admin/sessions`
+
+- Requires authenticated user with `Admin` or `Owner` role.
+- Returns active sessions with `id`, `user_id`, `org_id`, `provider`, `expires_at`.
+
+## CORS and Static
+
+- CORS allows local dev origins (see `cmd/server/main.go`).
+- Static assets are served under `/static/*`.
+
+## Notes
+
+- Time must be accurate for TOTP; ensure client and server clocks are in sync.
+- Denylist may block specific users or identities (provider+subject) with 403.
+- Rate limit returns 429 with `Retry-After` set.
+

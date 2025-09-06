@@ -23,7 +23,12 @@ type Config struct {
         } `mapstructure:"request_id"`
         Session struct {
             SweeperInterval time.Duration `mapstructure:"sweeper_interval"`
+            CookieSecure    bool          `mapstructure:"cookie_secure"`
+            SameSite        string        `mapstructure:"same_site"`
         } `mapstructure:"session"`
+        MFA struct {
+            LocalRequired bool `mapstructure:"local_required"`
+        } `mapstructure:"mfa"`
         RateLimit struct {
             Enabled            bool          `mapstructure:"enabled"`
             RequestsPerMinute  int           `mapstructure:"rpm"`
@@ -61,6 +66,9 @@ func Load() Config {
     // Security defaults
     viper.SetDefault("security.request_id.trust_header", false)
     viper.SetDefault("security.session.sweeper_interval", "5m")
+    viper.SetDefault("security.session.cookie_secure", false)
+    viper.SetDefault("security.session.same_site", "lax")
+    viper.SetDefault("security.mfa.local_required", false)
     viper.SetDefault("security.rate_limit.enabled", true)
     viper.SetDefault("security.rate_limit.rpm", 120)
     viper.SetDefault("security.rate_limit.burst", 60)
@@ -83,6 +91,9 @@ func Load() Config {
     _ = viper.BindEnv("logging.format", "LOG_FORMAT")
     _ = viper.BindEnv("security.request_id.trust_header", "REQUEST_ID_TRUST_HEADER")
     _ = viper.BindEnv("security.session.sweeper_interval", "SESSION_SWEEPER_INTERVAL")
+    _ = viper.BindEnv("security.session.cookie_secure", "SESSION_COOKIE_SECURE")
+    _ = viper.BindEnv("security.session.same_site", "SESSION_SAME_SITE")
+    _ = viper.BindEnv("security.mfa.local_required", "MFA_LOCAL_REQUIRED")
     _ = viper.BindEnv("security.rate_limit.enabled", "RATE_LIMIT_ENABLED")
     _ = viper.BindEnv("security.rate_limit.rpm", "RATE_LIMIT_RPM")
     _ = viper.BindEnv("security.rate_limit.burst", "RATE_LIMIT_BURST")

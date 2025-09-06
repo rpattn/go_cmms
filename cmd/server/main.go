@@ -30,9 +30,14 @@ func main() {
 	// --- Load config (config.yaml + env overrides) ---
 	cfg := config.Load()
 
-    // --- Logger ---
-    // Configure slog from config: logging.level, logging.format
-    logging.Setup(cfg.Logging.Level, cfg.Logging.Format == "json")
+	// --- Logger ---
+	// Configure slog from config: logging.level, logging.format
+	logging.Setup(cfg.Logging.Level, cfg.Logging.Format == "json")
+
+	// Configure session cookie security (dev often needs Secure=false)
+	auth.SetCookieSecurity(cfg.Security.Session.CookieSecure)
+	// Configure SameSite policy
+	auth.SetCookieSameSite(cfg.Security.Session.SameSite)
 
     // --- Background session sweeper ---
     interval := cfg.Security.Session.SweeperInterval
@@ -69,6 +74,8 @@ func main() {
 	mux.Use(middleware.RequestID(cfg.Security.RequestID.TrustHeader))
 	mux.Use(middleware.EnrichLogger)
 	mux.Use(middleware.SlogRequestLogger)
+	// Enforce MFA for local accounts if enabled
+	mux.Use(middleware.MFAEnforce(r, cfg.Security.MFA.LocalRequired))
 	if cfg.Security.RateLimit.Enabled {
 		mux.Use(middleware.RateLimitWith(cfg.Security.RateLimit.RequestsPerMinute, cfg.Security.RateLimit.Burst, cfg.Security.RateLimit.TTL))
 	}

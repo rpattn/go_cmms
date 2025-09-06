@@ -2,11 +2,11 @@
 package auth
 
 import (
-    "context"
-    "crypto/rand"
-    "crypto/subtle"
-    "encoding/base64"
-    "encoding/json"
+	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 
@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-    "yourapp/internal/models"
-    "yourapp/internal/repo"
-    "yourapp/internal/session"
+	"yourapp/internal/models"
+	"yourapp/internal/repo"
+	"yourapp/internal/session"
 
 	//"github.com/google/uuid"
 	"github.com/pquerna/otp"
@@ -125,20 +125,26 @@ func LoginHandler(r repo.Repo) http.HandlerFunc {
 			return
 		}
 
-		// If TOTP is enabled, enforce it
-		if r.UserHasTOTP(req.Context(), user.ID) {
-			if body.TOTPCode == "" {
-				http.Error(w, "mfa required", http.StatusUnauthorized)
-				log.Println("login missing mfa code for user:", username)
-				return
-			}
-			sec, ok := r.GetTOTPSecret(req.Context(), user.ID)
-			if !ok || !validateTOTP(sec, body.TOTPCode) {
-				http.Error(w, "invalid mfa", http.StatusUnauthorized)
-				log.Println("login invalid mfa code for user:", username)
-				return
-			}
-		}
+        // If TOTP is enabled, enforce it
+        if r.UserHasTOTP(req.Context(), user.ID) {
+            if strings.TrimSpace(body.TOTPCode) == "" {
+                writeJSON(w, http.StatusUnauthorized, map[string]any{
+                    "error":   "mfa_required",
+                    "message": "Two-factor code required",
+                })
+                log.Println("login missing mfa code for user:", username)
+                return
+            }
+            sec, ok := r.GetTOTPSecret(req.Context(), user.ID)
+            if !ok || !validateTOTP(sec, body.TOTPCode) {
+                writeJSON(w, http.StatusUnauthorized, map[string]any{
+                    "error":   "invalid_mfa",
+                    "message": "Invalid two-factor code",
+                })
+                log.Println("login invalid mfa code for user:", username)
+                return
+            }
+        }
 
 		// Pick an org
 		org, err := r.PickUserOrg(req.Context(), user.ID)
@@ -160,19 +166,19 @@ func LoginHandler(r repo.Repo) http.HandlerFunc {
 
 // POST /auth/logout
 func LogoutHandler() http.HandlerFunc {
-    return func(w http.ResponseWriter, req *http.Request) {
-        // Best-effort delete server-side session
-        if c, err := req.Cookie("session"); err == nil && c.Value != "" {
-            session.DefaultStore.Delete(c.Value)
-        }
+	return func(w http.ResponseWriter, req *http.Request) {
+		// Best-effort delete server-side session
+		if c, err := req.Cookie("session"); err == nil && c.Value != "" {
+			session.DefaultStore.Delete(c.Value)
+		}
         http.SetCookie(w, &http.Cookie{
             Name:     "session",
             Value:    "",
             Path:     "/",
             Expires:  time.Unix(0, 0),
             HttpOnly: true,
-            Secure:   true,
-            SameSite: http.SameSiteLaxMode,
+            Secure:   cookieSecure,
+            SameSite: sameSiteMode,
         })
         w.WriteHeader(http.StatusNoContent)
     }

@@ -22,6 +22,27 @@ var (
 	ctxSess ctxKey = "session"
 )
 
+// cookieSecure controls whether the session cookie is marked Secure.
+// Default true; main() should override based on config for local dev.
+var cookieSecure = true
+
+// SetCookieSecurity allows main.go to configure whether cookies are Secure.
+func SetCookieSecurity(secure bool) { cookieSecure = secure }
+
+var sameSiteMode = http.SameSiteLaxMode
+
+// SetCookieSameSite allows configuring SameSite mode: "lax", "none", "strict".
+func SetCookieSameSite(mode string) {
+    switch mode {
+    case "none":
+        sameSiteMode = http.SameSiteNoneMode
+    case "strict":
+        sameSiteMode = http.SameSiteStrictMode
+    default:
+        sameSiteMode = http.SameSiteLaxMode
+    }
+}
+
 func SetSessionCookie(w http.ResponseWriter, s models.Session) {
     // Store server-side and set an opaque session id cookie
     sid := session.DefaultStore.Create(s)
@@ -30,8 +51,8 @@ func SetSessionCookie(w http.ResponseWriter, s models.Session) {
         Value:    sid,
         Path:     "/",
         HttpOnly: true,
-        Secure:   true,
-        SameSite: http.SameSiteLaxMode,
+        Secure:   cookieSecure,
+        SameSite: sameSiteMode,
         Expires:  s.Expiry,
     })
 }

@@ -58,6 +58,22 @@ func (q *Queries) CreateWorkOrderFromJSON(ctx context.Context, arg CreateWorkOrd
 	return id, err
 }
 
+const deleteWorkOrderByID = `-- name: DeleteWorkOrderByID :exec
+DELETE FROM work_order
+WHERE organisation_id = $1
+  AND id = $2
+`
+
+type DeleteWorkOrderByIDParams struct {
+	OrganisationID pgtype.UUID `db:"organisation_id" json:"organisation_id"`
+	ID             pgtype.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) DeleteWorkOrderByID(ctx context.Context, arg DeleteWorkOrderByIDParams) error {
+	_, err := q.db.Exec(ctx, deleteWorkOrderByID, arg.OrganisationID, arg.ID)
+	return err
+}
+
 const getWorkOrderDetail = `-- name: GetWorkOrderDetail :one
 SELECT
   jsonb_strip_nulls(
