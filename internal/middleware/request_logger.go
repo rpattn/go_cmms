@@ -56,6 +56,7 @@ func SlogRequestLogger(next http.Handler) http.Handler {
         if org, ok := auth.OrgFromContext(r.Context()); ok {
             attrs = append(attrs, "org_id", org.String())
         }
-        slog.Info("request", attrs...)
+        // Use logger from context if present to include EnrichLogger attrs
+        slog.InfoContext(r.Context(), "request", attrs...)
     })
 }

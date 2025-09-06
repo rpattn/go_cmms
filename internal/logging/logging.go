@@ -11,6 +11,9 @@ import (
     "sync"
     "time"
     "unicode/utf8"
+    
+    "yourapp/internal/auth"
+    "yourapp/internal/middleware"
 )
 
 const timeLayout = "2006/01/02 15:04:05"
@@ -107,7 +110,7 @@ func appendKeyVal(sb *strings.Builder, key string, val any) {
     }
 }
 
-func (h *customTextHandler) Handle(_ context.Context, r slog.Record) error {
+func (h *customTextHandler) Handle(ctx context.Context, r slog.Record) error {
     ts := r.Time
     if ts.IsZero() {
         ts = time.Now()
@@ -137,6 +140,30 @@ func (h *customTextHandler) Handle(_ context.Context, r slog.Record) error {
     type pair struct{ k string; v any }
     normal := map[string]any{}
     groupsFlat := make([]pair, 0)
+
+    // Enrich from context: request_id, user_id, org_id, provider
+    if rid, ok := middleware.GetRequestID(ctx); ok {
+        normal["request_id"] = rid
+    }
+    if uid, ok := middleware.GetLogUserID(ctx); ok {
+        normal["user_id"] = uid
+    }
+    if oid, ok := middleware.GetLogOrgID(ctx); ok {
+        normal["org_id"] = oid
+    }
+    if prov, ok := middleware.GetLogProvider(ctx); ok {
+        normal["provider"] = prov
+    }
+    if sess, ok := auth.SessionFromContext(ctx); ok && sess != nil {
+        normal["user_id"] = sess.UserID.String()
+        normal["org_id"] = sess.ActiveOrg.String()
+        if sess.Provider != "" { normal["provider"] = sess.Provider }
+    } else if u, ok := auth.GetUserFromContext(ctx); ok && u != nil {
+        normal["user_id"] = u.ID.String()
+    }
+    if org, ok := auth.OrgFromContext(ctx); ok {
+        normal["org_id"] = org.String()
+    }
     for _, a := range attrs {
         if a.Key == "" {
             continue

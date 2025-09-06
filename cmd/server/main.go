@@ -61,8 +61,15 @@ func main() {
 	mux := chi.NewRouter()
 
     // Ensure request ID then log requests with slog
-    mux.Use(middleware.RequestID)
+    mux.Use(middleware.RequestID(cfg.Security.RequestID.TrustHeader))
+    mux.Use(middleware.EnrichLogger)
     mux.Use(middleware.SlogRequestLogger)
+    if cfg.Security.RateLimit.Enabled {
+        mux.Use(middleware.RateLimitWith(cfg.Security.RateLimit.RequestsPerMinute, cfg.Security.RateLimit.Burst, cfg.Security.RateLimit.TTL))
+    }
+    if cfg.Security.Denylist.Enabled {
+        mux.Use(middleware.Denylist)
+    }
 
 	// --- CORS middleware ---
 	mux.Use(cors.Handler(cors.Options{

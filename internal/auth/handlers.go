@@ -12,6 +12,7 @@ import (
 
 	"yourapp/internal/models"
 	"yourapp/internal/repo"
+    "yourapp/internal/security"
 
 	//"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
@@ -84,10 +85,22 @@ func CallbackHandler(providers map[ProviderKind]*Provider, r repo.Repo) http.Han
 			return
 		}
 
+		// Denylist check for provider+subject
+		if security.IsIdentityDenied(string(pname), id.Subject) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
 		// Upsert user + link identity
 		u, err := r.UpsertUserByVerifiedEmail(ctx, id.Email, id.Name)
 		if err != nil {
 			http.Error(w, "user upsert failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Denylist check by user_id
+		if security.IsUserDenied(u.ID) {
+			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
 		if err := r.LinkIdentity(ctx, u.ID, string(pname), id.Subject); err != nil {

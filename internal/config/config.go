@@ -17,6 +17,20 @@ type Config struct {
         Level  string `mapstructure:"level"`
         Format string `mapstructure:"format"`
     } `mapstructure:"logging"`
+    Security struct {
+        RequestID struct {
+            TrustHeader bool `mapstructure:"trust_header"`
+        } `mapstructure:"request_id"`
+        RateLimit struct {
+            Enabled            bool          `mapstructure:"enabled"`
+            RequestsPerMinute  int           `mapstructure:"rpm"`
+            Burst              int           `mapstructure:"burst"`
+            TTL                time.Duration `mapstructure:"ttl"`
+        } `mapstructure:"rate_limit"`
+        Denylist struct {
+            Enabled bool `mapstructure:"enabled"`
+        } `mapstructure:"denylist"`
+    } `mapstructure:"security"`
     Microsoft struct {
         ClientID     string `mapstructure:"client_id"`
         ClientSecret string `mapstructure:"client_secret"`
@@ -41,6 +55,13 @@ func Load() Config {
     // Sensible logging defaults
     viper.SetDefault("logging.level", "info")
     viper.SetDefault("logging.format", "text")
+    // Security defaults
+    viper.SetDefault("security.request_id.trust_header", false)
+    viper.SetDefault("security.rate_limit.enabled", true)
+    viper.SetDefault("security.rate_limit.rpm", 120)
+    viper.SetDefault("security.rate_limit.burst", 60)
+    viper.SetDefault("security.rate_limit.ttl", "30m")
+    viper.SetDefault("security.denylist.enabled", true)
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -56,6 +77,12 @@ func Load() Config {
     _ = viper.BindEnv("database.url", "DATABASE_URL")
     _ = viper.BindEnv("logging.level", "LOG_LEVEL")
     _ = viper.BindEnv("logging.format", "LOG_FORMAT")
+    _ = viper.BindEnv("security.request_id.trust_header", "REQUEST_ID_TRUST_HEADER")
+    _ = viper.BindEnv("security.rate_limit.enabled", "RATE_LIMIT_ENABLED")
+    _ = viper.BindEnv("security.rate_limit.rpm", "RATE_LIMIT_RPM")
+    _ = viper.BindEnv("security.rate_limit.burst", "RATE_LIMIT_BURST")
+    _ = viper.BindEnv("security.rate_limit.ttl", "RATE_LIMIT_TTL")
+    _ = viper.BindEnv("security.denylist.enabled", "DENYLIST_ENABLED")
     _ = viper.BindEnv("microsoft.client_id", "MICROSOFT_CLIENT_ID")
 	_ = viper.BindEnv("microsoft.client_secret", "MICROSOFT_CLIENT_SECRET")
 	_ = viper.BindEnv("microsoft.tenant_id", "MICROSOFT_TENANT_ID")

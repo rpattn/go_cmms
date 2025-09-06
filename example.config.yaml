@@ -13,6 +13,18 @@ logging:
   level: "info"   # debug|info|warn|error
   format: "text"  # text|json
 
+# Security and traffic controls
+security:
+  request_id:
+    trust_header: false    # accept incoming X-Request-ID
+  rate_limit:
+    enabled: true          # enable rate limiting middleware
+    rpm: 120               # requests per minute
+    burst: 60              # burst capacity
+    ttl: "30m"            # bucket eviction TTL
+  denylist:
+    enabled: true          # block denylisted users
+
 # Microsoft Entra ID (Azure AD) OAuth2 / OIDC
 microsoft:
   client_id: ""        # e.g. "00000000-1111-2222-3333-444444444444"
