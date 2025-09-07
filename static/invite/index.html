@@ -16,6 +16,11 @@
     .token { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #f7f7f7; padding: 0.5rem; border-radius: 6px; word-break: break-all; }
   </style>
   <script>
+    const API_PREFIX = (() => {
+      const m = location.pathname.match(/^(.*)\/invite(?:\/accept)?\/?$/);
+      return m ? m[1] : '';
+    })();
+
     async function createInvite(ev) {
       ev.preventDefault();
       const email = document.getElementById('email').value.trim();
@@ -23,7 +28,7 @@
       const out = document.getElementById('output');
       out.textContent = '';
       try {
-        const res = await fetch('/auth/invite', {
+        const res = await fetch(API_PREFIX + '/auth/invite', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

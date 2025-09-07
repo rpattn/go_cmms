@@ -71,6 +71,9 @@ type Repo interface {
     CreateInvite(ctx context.Context, orgID uuid.UUID, inviterID uuid.UUID, email string, role models.OrgRole, tokenHash string, expiresAt time.Time) error
     GetInviteByTokenHash(ctx context.Context, tokenHash string) (models.OrgInvite, error)
     UseInvite(ctx context.Context, tokenHash string) error
+
+    // Local credential management
+    UpdateLocalPasswordHash(ctx context.Context, userID uuid.UUID, phc string) error
 }
 
 // pgRepo wraps the sqlc Queries.

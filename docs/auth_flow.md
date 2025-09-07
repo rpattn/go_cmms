@@ -1,6 +1,16 @@
 # Auth Flow and Endpoints (Frontend Guide)
 
-This document explains how to integrate the frontend with the server’s authentication, sessions, and MFA (TOTP) flows. It includes endpoints, request/response shapes, and UX guidance.
+This document explains how to integrate the frontend with the server's authentication, sessions, and MFA (TOTP) flows. It includes endpoints, request/response shapes, and UX guidance.
+
+## Config Highlights
+
+- `logging.level`, `logging.format` (text|json)
+- `security.request_id.trust_header` — reads `X-Request-ID` if true; a request id is returned in responses.
+- `security.mfa.local_required` — require TOTP for local users across the app.
+- `security.rate_limit.*` — RPM, burst, TTL; returns 429 when exceeded.
+- `security.session.sweeper_interval` — background cleanup cadence (e.g., `5m`).
+- `frontend.url` — public origin of the frontend (e.g., `https://app.example.com`).
+- `frontend.api_route` — path prefix on the frontend that proxies to this backend (default `/api/backend`). The server normalizes this to start with `/` and have no trailing slash; example: `api/backend/` becomes `/api/backend`.
 
 ## Overview
 

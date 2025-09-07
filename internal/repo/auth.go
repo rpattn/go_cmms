@@ -73,6 +73,14 @@ func (p *pgRepo) GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool
     return sec, true
 }
 
+func (p *pgRepo) UpdateLocalPasswordHash(ctx context.Context, uid uuid.UUID, phc string) error {
+    slog.DebugContext(ctx, "UpdateLocalPasswordHash", "user_id", uid.String())
+    return p.q.UpdateLocalPasswordHash(ctx, db.UpdateLocalPasswordHashParams{
+        UserID:       fromUUID(uid),
+        PasswordHash: phc,
+    })
+}
+
 // -------- Login attempt recording --------
 
 func (p *pgRepo) RecordLoginSuccess(ctx context.Context, username string, ip netip.Addr) error {

@@ -103,13 +103,14 @@ func main() {
     mux.Post("/auth/login", auth.LoginHandler(r))
     mux.Post("/auth/logout", auth.LogoutHandler())
     mux.Post("/auth/link/password", auth.LinkWithPasswordHandler(r, cfg))
+    mux.Post("/auth/set-password", auth.SetPasswordHandler(r, cfg))
     mux.Get("/auth/mfa/totp/setup", auth.TOTPSetupBeginHandler(r))
     mux.Post("/auth/mfa/totp/verify", auth.TOTPSetupVerifyHandler(r))
     mux.Put("/auth/profile", auth.UpdateProfileHandler(r))
 
     // Invite routes (stubs): create requires Owner role; accept is public
     mux.With(middleware.RequireAuth(r), middleware.RequireRole(r, models.RoleOwner)).
-        Post("/auth/invite", auth.InviteCreateHandler(r))
+        Post("/auth/invite", auth.InviteCreateHandler(r, cfg))
     mux.Post("/auth/invite/accept", auth.InviteAcceptHandler(r))
 
 	// main.go (add inside main())
@@ -144,19 +145,15 @@ func main() {
 		http.ServeFile(w, r, "./cmd/server/static/test.html")
 	})
 
-    // Convenience routes to static pages
+    // Convenience routes to static pages (serve directly, no redirect)
     mux.Get("/invite", func(w http.ResponseWriter, r *http.Request) {
-        http.Redirect(w, r, "/static/invite/index.html", http.StatusFound)
+        http.ServeFile(w, r, "./static/invite/index.html")
     })
     mux.Get("/invite/accept", func(w http.ResponseWriter, r *http.Request) {
-        dest := "/static/invite/accept.html"
-        if r.URL.RawQuery != "" {
-            dest = dest + "?" + r.URL.RawQuery
-        }
-        http.Redirect(w, r, dest, http.StatusFound)
+        http.ServeFile(w, r, "./static/invite/accept.html")
     })
     mux.Get("/mfa", func(w http.ResponseWriter, r *http.Request) {
-        http.Redirect(w, r, "/static/mfa/index.html", http.StatusFound)
+        http.ServeFile(w, r, "./static/mfa/index.html")
     })
 
 	// --- Start server ---

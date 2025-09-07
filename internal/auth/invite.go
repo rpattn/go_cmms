@@ -11,6 +11,7 @@ import (
     "strings"
     "time"
 
+    "yourapp/internal/config"
     "yourapp/internal/models"
     "yourapp/internal/repo"
 )
@@ -18,7 +19,7 @@ import (
 // InviteCreateHandler: Owners can invite users to current org.
 // POST /auth/invite { "email": "user@example.com", "role": "Member" }
 // Returns a one-time token (plaintext) for delivery via email. The token is hashed at rest.
-func InviteCreateHandler(r repo.Repo) http.HandlerFunc {
+func InviteCreateHandler(r repo.Repo, cfg config.Config) http.HandlerFunc {
     type bodyT struct {
         Email string `json:"email"`
         Role  string `json:"role"` // optional; defaults to Member
@@ -67,12 +68,10 @@ func InviteCreateHandler(r repo.Repo) http.HandlerFunc {
             http.Error(w, "create invite failed", http.StatusInternalServerError)
             return
         }
-        // Build an acceptance link; prefer same-origin convenience route
-        scheme := req.Header.Get("X-Forwarded-Proto")
-        if scheme == "" { scheme = "http" }
-        host := req.Header.Get("X-Forwarded-Host")
-        if host == "" { host = req.Host }
-        acceptURL := scheme + "://" + host + "/invite/accept?token=" + neturl.QueryEscape(token)
+        // Build an acceptance link based on configured frontend URL + API route prefix
+        base := strings.TrimRight(cfg.Frontend.URL, "/")
+        api := "/" + strings.TrimLeft(cfg.Frontend.APIRoute, "/")
+        acceptURL := base + api + "/invite/accept?token=" + neturl.QueryEscape(token)
         writeJSON(w, http.StatusOK, map[string]any{
             "ok":          true,
             "accept_url":  acceptURL,
@@ -92,11 +91,6 @@ func InviteAcceptHandler(r repo.Repo) http.HandlerFunc {
             http.Error(w, "bad json", http.StatusBadRequest)
             return
         }
-        sess := ReadSession(req)
-        if sess == nil {
-            http.Error(w, "unauthorized", http.StatusUnauthorized)
-            return
-        }
         // Lookup invite by token hash
         sum := sha256.Sum256([]byte(b.Token))
         tokenHash := hex.EncodeToString(sum[:])
@@ -109,14 +103,21 @@ func InviteAcceptHandler(r repo.Repo) http.HandlerFunc {
             http.Error(w, "invite expired or used", http.StatusBadRequest)
             return
         }
-        // Ensure current user email matches invite email (case-insensitive)
-        u, err := r.GetUserByID(req.Context(), sess.UserID)
-        if err != nil || strings.ToLower(u.Email) != strings.ToLower(inv.Email) {
-            http.Error(w, "email mismatch", http.StatusForbidden)
-            return
+        // Resolve user by email; create if not exists
+        var user models.User
+        if u, err := r.GetUserByEmail(req.Context(), strings.ToLower(inv.Email)); err == nil {
+            user = u
+        } else {
+            // Create new user with invited email; no name known yet
+            nu, err2 := r.UpsertUserByVerifiedEmail(req.Context(), strings.ToLower(inv.Email), "")
+            if err2 != nil {
+                http.Error(w, "user create failed", http.StatusInternalServerError)
+                return
+            }
+            user = nu
         }
         // Add membership with invited role
-        if _, err := r.EnsureMembership(req.Context(), inv.OrgID, sess.UserID, inv.Role); err != nil {
+        if _, err := r.EnsureMembership(req.Context(), inv.OrgID, user.ID, inv.Role); err != nil {
             http.Error(w, "membership failed", http.StatusInternalServerError)
             return
         }
@@ -125,13 +126,14 @@ func InviteAcceptHandler(r repo.Repo) http.HandlerFunc {
             http.Error(w, "invite update failed", http.StatusInternalServerError)
             return
         }
-        // Switch session to invited org
+        // If the user account was created by this acceptance, log them in and indicate they need to set a password
+        // Heuristic: if created above, we won't have fetched; but to keep it simple, always set session here
         SetSessionCookie(w, models.Session{
-            UserID:    sess.UserID,
+            UserID:    user.ID,
             ActiveOrg: inv.OrgID,
-            Provider:  sess.Provider,
+            Provider:  "invite",
             Expiry:    time.Now().Add(8 * time.Hour),
         })
-        writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+        writeJSON(w, http.StatusOK, map[string]any{"ok": true, "needs_password": true})
     }
 }

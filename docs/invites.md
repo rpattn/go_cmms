@@ -13,6 +13,7 @@ This document outlines the upcoming invite flow that complements the new signup 
   - Body: `{ "email": "user@example.com", "role": "Member" }`
   - Creates an invite and returns an `accept_url` plus `exp` and `role`.
   - The server stores only a SHA-256 hash of the underlying token; the token is embedded in the URL query string.
+  - The `accept_url` is constructed from `frontend.url` + `frontend.api_route` + `/invite/accept?token=...`.
   - Returns: `{ "ok": true, "accept_url": "https://api.example.com/invite/accept?token=...", "exp": "2025-09-14T...Z", "role": "Member" }`
 
 - POST `/auth/invite/accept`
@@ -50,6 +51,10 @@ CREATE INDEX org_invites_email_idx ON org_invites (email);
 - Email verification: require the accepting user’s email to match the invited email or enforce extra verification.
 
 Status: implemented (token generation, storage, accept). Email delivery is application-specific and not included.
+
+### Config
+- `frontend.url`: the public origin of your frontend (e.g., `https://app.example.com`).
+- `frontend.api_route`: the path prefix on the frontend that proxies to the backend (default `/api/backend`). Used to build acceptance links that route through your frontend.
 
 ## Static Pages
 
