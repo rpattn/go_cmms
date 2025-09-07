@@ -87,6 +87,7 @@ func LinkWithPasswordHandler(r repo.Repo, cfg config.Config) http.HandlerFunc {
     type reqBody struct {
         Email    string `json:"email"`
         Password string `json:"password"`
+        TOTPCode string `json:"totp_code"`
     }
     return func(w http.ResponseWriter, req *http.Request) {
         token := readPendingCookie(req)
@@ -122,6 +123,18 @@ func LinkWithPasswordHandler(r repo.Repo, cfg config.Config) http.HandlerFunc {
         if err != nil || !VerifyPassword(body.Password, cred.PasswordHash) {
             writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "invalid_login"})
             return
+        }
+
+        // If this local account has MFA enabled, enforce TOTP for linking
+        if r.UserHasTOTP(req.Context(), user.ID) {
+            sec, ok := r.GetTOTPSecret(req.Context(), user.ID)
+            if !ok || strings.TrimSpace(body.TOTPCode) == "" || !validateTOTP(sec, body.TOTPCode) {
+                writeJSON(w, http.StatusUnauthorized, map[string]any{
+                    "error":   "invalid_mfa",
+                    "message": "Valid two-factor code required to link",
+                })
+                return
+            }
         }
 
         // Enforce email match to prevent cross-account linking
