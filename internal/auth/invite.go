@@ -70,7 +70,10 @@ func InviteCreateHandler(r repo.Repo, cfg config.Config) http.HandlerFunc {
         }
         // Build an acceptance link based on configured frontend URL + API route prefix
         base := strings.TrimRight(cfg.Frontend.URL, "/")
-        api := "/" + strings.TrimLeft(cfg.Frontend.APIRoute, "/")
+        api := strings.TrimSpace(cfg.Frontend.APIRoute)
+        if api != "" {
+            api = "/" + strings.Trim(api, "/")
+        }
         acceptURL := base + api + "/invite/accept?token=" + neturl.QueryEscape(token)
         writeJSON(w, http.StatusOK, map[string]any{
             "ok":          true,

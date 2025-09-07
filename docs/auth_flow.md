@@ -10,7 +10,7 @@ This document explains how to integrate the frontend with the server's authentic
 - `security.rate_limit.*` — RPM, burst, TTL; returns 429 when exceeded.
 - `security.session.sweeper_interval` — background cleanup cadence (e.g., `5m`).
 - `frontend.url` — public origin of the frontend (e.g., `https://app.example.com`).
-- `frontend.api_route` — path prefix on the frontend that proxies to this backend (default `/api/backend`). The server normalizes this to start with `/` and have no trailing slash; example: `api/backend/` becomes `/api/backend`.
+- `frontend.api_route` — path prefix on the frontend that proxies to this backend (default empty). If set (e.g., `/api/backend`), the server normalizes it to start with `/` and have no trailing slash; example: `api/backend/` becomes `/api/backend`.
 
 ## Overview
 

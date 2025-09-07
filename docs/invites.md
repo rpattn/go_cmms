@@ -54,7 +54,7 @@ Status: implemented (token generation, storage, accept). Email delivery is appli
 
 ### Config
 - `frontend.url`: the public origin of your frontend (e.g., `https://app.example.com`).
-- `frontend.api_route`: the path prefix on the frontend that proxies to the backend (default `/api/backend`). Used to build acceptance links that route through your frontend.
+- `frontend.api_route`: the path prefix on the frontend that proxies to the backend (default empty). If set (e.g., `/api/backend`), it is used when building acceptance links so they route through your frontend.
 
 ## Static Pages
 
