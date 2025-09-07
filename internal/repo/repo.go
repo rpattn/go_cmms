@@ -38,7 +38,7 @@ type Repo interface {
 	SetTOTPSecret(ctx context.Context, uid uuid.UUID, secret, issuer, label string) error
 	GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool)
 
-	ListWorkOrdersPaged(ctx context.Context, org_id uuid.UUID, arg []byte) ([]models.WorkOrder, error)
+	ListWorkOrdersPaged(ctx context.Context, org_id uuid.UUID, arg []byte) ([]models.WorkOrder, int64, error)
 	GetWorkOrderDetail(ctx context.Context, id uuid.UUID) (json.RawMessage, error)
 	ChangeWorkOrderStatus(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID, status string) error
 	CreateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, user_id uuid.UUID, payload []byte) (uuid.UUID, error)

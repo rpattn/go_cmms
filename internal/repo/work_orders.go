@@ -59,7 +59,7 @@ func (p *pgRepo) GetWorkOrderDetail(ctx context.Context, id uuid.UUID) (json.Raw
 	return nil, errors.New("unexpected row type for GetWorkOrderDetail; check sqlc-generated type")
 }
 
-func (p *pgRepo) ListWorkOrdersPaged(ctx context.Context, org_id uuid.UUID, arg []byte) ([]models.WorkOrder, error) {
+func (p *pgRepo) ListWorkOrdersPaged(ctx context.Context, org_id uuid.UUID, arg []byte) ([]models.WorkOrder, int64, error) {
 	slog.DebugContext(ctx, "ListWorkOrdersPaged")
 	params := db.ListWorkOrdersPagedParams{
 		OrgID:   toPgUUID(org_id),
@@ -68,12 +68,12 @@ func (p *pgRepo) ListWorkOrdersPaged(ctx context.Context, org_id uuid.UUID, arg 
 	rows, err := p.q.ListWorkOrdersPaged(ctx, params)
 	if err != nil {
 		slog.ErrorContext(ctx, "ListWorkOrdersPaged failed", "err", err)
-		return nil, err
+		return nil, 0, err
 	}
 	if len(rows) == 0 {
-		return []models.WorkOrder{}, nil
+		return []models.WorkOrder{}, 0, nil
 	}
-
+	count := rows[0].TotalRows
 	wos := make([]models.WorkOrder, 0, len(rows))
 	for _, r := range rows {
 		wo := models.WorkOrder{
@@ -91,7 +91,7 @@ func (p *pgRepo) ListWorkOrdersPaged(ctx context.Context, org_id uuid.UUID, arg 
 		wos = append(wos, wo)
 	}
 	slog.DebugContext(ctx, "ListWorkOrdersPaged ok", "count", len(wos))
-	return wos, nil
+	return wos, count, nil
 }
 
 func (p *pgRepo) ChangeWorkOrderStatus(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID, status string) error {

@@ -77,7 +77,7 @@ func (h *Handler) FilterSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// call the sqlc query
-	wos, err := h.repo.ListWorkOrdersPaged(r.Context(), org, arg)
+	wos, count, err := h.repo.ListWorkOrdersPaged(r.Context(), org, arg)
 	if err != nil {
 		httpserver.JSON(w, http.StatusInternalServerError, map[string]string{
 			"error": "failed to search work orders",
@@ -86,9 +86,9 @@ func (h *Handler) FilterSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpserver.JSON(w, http.StatusOK, map[string]any{
-		"message": "search work orders",
-		"org":     org, // optional: include org id/slug
-		"content": wos,
+		"message":       "search work orders",
+		"totalElements": count, // optional: include org id/slug
+		"content":       wos,
 	})
 }
 
