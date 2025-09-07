@@ -34,17 +34,19 @@ This document explains how to integrate the frontend with the server’s authent
 
 ### Endpoint: POST `/auth/signup`
 
-Body
+Body (org_slug is required and must be unique)
 
 ```json
 { "email": "user@example.com", "username": "user", "name": "User Name", "password": "****", "org_slug": "acme" }
 ```
 
-Response
+Responses
 
-- 201 Created on success; sets `session` cookie.
-
-Production note: The current implementation allows passing `org_slug` to self-join an organisation as a `Member`. This is not recommended for production deployments. Prefer invitation tokens or domain/tenant-based membership approval.
+- 201 Created on success; sets `session` cookie. Behavior:
+  - Creates a new organisation with `slug=org_slug` and sets the signing-up user as `Owner`.
+  - Sets the session with `active_org` to that newly created org.
+- 400 if `org_slug` is missing or invalid.
+- 409 `{ "error": "org_exists" }` if an organisation already exists with that slug. In that case, sign-up must proceed via an invite from an existing owner (invite flow TBD).
 
 ### Endpoint: POST `/auth/login`
 

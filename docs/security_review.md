@@ -10,11 +10,11 @@ Overall auth design is sound (opaque server-side sessions, Argon2id for local pa
 
 ## High-Risk Findings
 
-- Open organisation self-join during signup
-  - Anyone can pass `org_slug` and become a `Member` of that org during signup.
-  - Code: `internal/auth/local.go:32`, `internal/auth/local.go:71`.
-  - Impact: Unauthorized access to org data by guessing/knowing slugs.
-  - Fix: Remove public `org_slug` handling or gate via invite tokens/domain or admin approval.
+- Organisation access at signup
+  - Previous behavior allowed self-joining existing orgs by slug.
+  - Impact: Potential unauthorized access by guessing/knowing slugs.
+  - Mitigation (implemented): Signup now requires a unique `org_slug`; if it already exists, signup is rejected with 409. When unique, a new organisation is created and the creator is assigned `Owner`.
+  - Code (after change): `internal/auth/local.go` (SignupHandler creates org and sets Owner), `internal/repo/repo.go` + `internal/repo/orgs.go` (CreateOrg).
 
 - Fallback redirect trusts request headers (open redirect)
   - When `frontend.url` is unset, the OAuth callback redirects using `X-Forwarded-Proto` and `X-Forwarded-Host`.
@@ -62,9 +62,9 @@ Overall auth design is sound (opaque server-side sessions, Argon2id for local pa
 
 ## Remediation TODOs
 
-- Signup hardening
-  - Remove `org_slug` from public signup or require invite token.
-  - Add invitation endpoints and token verification.
+- Signup/invite flow
+  - Keep current “create org on signup” with Owner role for unique slugs.
+  - Add invitation endpoints so existing Owners can invite users to an existing organisation (required path when `org_slug` exists).
 
 - Redirect safety
   - Require `frontend.url` in production; remove header-derived fallback in `internal/auth/handlers.go:204`–`internal/auth/handlers.go:211`.
@@ -104,4 +104,3 @@ Overall auth design is sound (opaque server-side sessions, Argon2id for local pa
 - `internal/config/config.go:75`
 - `database/schema/002_local_auth.up.sql:15`
 - `internal/auth/local.go:246`
-

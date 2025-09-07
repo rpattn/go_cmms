@@ -136,7 +136,7 @@ export default function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setMsg('')
-    const res = await apiFetch('/auth/login', {
+  const res = await apiFetch('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, totp_code: totp || undefined }),

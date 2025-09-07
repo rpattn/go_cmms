@@ -58,6 +58,25 @@ func (p *pgRepo) FindOrgByTenantID(ctx context.Context, tid string) (models.Org,
     }, nil
 }
 
+func (p *pgRepo) CreateOrg(ctx context.Context, slug, name, tenantID string) (models.Org, error) {
+    slog.DebugContext(ctx, "CreateOrg", "slug", slug)
+    o, err := p.q.CreateOrg(ctx, db.CreateOrgParams{
+        Slug:       slug,
+        Name:       name,
+        MsTenantID: toText(tenantID),
+    })
+    if err != nil {
+        slog.ErrorContext(ctx, "CreateOrg failed", "err", err)
+        return models.Org{}, err
+    }
+    return models.Org{
+        ID:       toUUID(o.ID),
+        Slug:     o.Slug,
+        Name:     o.Name,
+        TenantID: fromText(o.MsTenantID),
+    }, nil
+}
+
 func (p *pgRepo) EnsureMembership(ctx context.Context, orgID, userID uuid.UUID, defaultRole models.OrgRole) (models.OrgRole, error) {
     slog.DebugContext(ctx, "EnsureMembership", "org_id", orgID.String(), "user_id", userID.String(), "default_role", string(defaultRole))
     roleText, err := p.q.EnsureMembership(ctx, db.EnsureMembershipParams{

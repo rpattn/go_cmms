@@ -30,33 +30,39 @@ import (
 // POST /auth/signup
 // Body: { "email": "...", "username": "...", "name": "...", "password": "...", "org_slug": "acme" }
 func SignupHandler(r repo.Repo) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		var body struct {
-			Email    string `json:"email"`
-			Username string `json:"username"`
-			Name     string `json:"name"`
-			Password string `json:"password"`
-			OrgSlug  string `json:"org_slug"`
-		}
-		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-			http.Error(w, "bad json", http.StatusBadRequest)
-			return
-		}
-		email := strings.ToLower(strings.TrimSpace(body.Email))
-		username := strings.ToLower(strings.TrimSpace(body.Username))
-		if email == "" || body.Password == "" {
-			http.Error(w, "missing fields", http.StatusBadRequest)
-			return
-		}
-		if username == "" {
-			username = email
-		}
+    return func(w http.ResponseWriter, req *http.Request) {
+        var body struct {
+            Email    string `json:"email"`
+            Username string `json:"username"`
+            Name     string `json:"name"`
+            Password string `json:"password"`
+            OrgSlug  string `json:"org_slug"`
+        }
+        if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+            http.Error(w, "bad json", http.StatusBadRequest)
+            return
+        }
+        email := strings.ToLower(strings.TrimSpace(body.Email))
+        username := strings.ToLower(strings.TrimSpace(body.Username))
+        if email == "" || body.Password == "" {
+            http.Error(w, "missing fields", http.StatusBadRequest)
+            return
+        }
+        if username == "" {
+            username = email
+        }
+        // Enforce org slug provided and non-empty for signup
+        slug := strings.ToLower(strings.TrimSpace(body.OrgSlug))
+        if slug == "" {
+            http.Error(w, "org_slug required", http.StatusBadRequest)
+            return
+        }
 
-		u, err := r.UpsertUserByVerifiedEmail(req.Context(), email, strings.TrimSpace(body.Name))
-		if err != nil {
-			http.Error(w, "user upsert failed", http.StatusInternalServerError)
-			return
-		}
+        u, err := r.UpsertUserByVerifiedEmail(req.Context(), email, strings.TrimSpace(body.Name))
+        if err != nil {
+            http.Error(w, "user upsert failed", http.StatusInternalServerError)
+            return
+        }
 
 		phc, err := HashPassword(body.Password, defaultArgonParams())
 		if err != nil {
@@ -68,28 +74,36 @@ func SignupHandler(r repo.Repo) http.HandlerFunc {
 			return
 		}
 
-		org, err := resolveOrgForSignup(req.Context(), r, body.OrgSlug, email)
-		if err != nil {
-			http.Error(w, "org not found", http.StatusBadRequest)
-			return
-		}
+        // Signup can create a brand new organisation with the given slug.
+        // If the slug already exists, reject signup and ask for an invite flow.
+        if _, err := r.FindOrgBySlug(req.Context(), slug); err == nil {
+            // Org already exists
+            writeJSON(w, http.StatusConflict, map[string]any{
+                "error":   "org_exists",
+                "message": "Organisation already exists. Ask an owner for an invite.",
+            })
+            return
+        }
+        // Create org (use slug as default display name)
+        org, err := r.CreateOrg(req.Context(), slug, slug, "")
+        if err != nil {
+            http.Error(w, "org create failed", http.StatusInternalServerError)
+            return
+        }
+        if _, err := r.EnsureMembership(req.Context(), org.ID, u.ID, models.RoleOwner); err != nil {
+            http.Error(w, "membership failed", http.StatusInternalServerError)
+            fmt.Println("membership failed:", err)
+            return
+        }
 
-		if _, err := r.EnsureMembership(req.Context(), org.ID, u.ID, models.RoleMember); err != nil {
-			http.Error(w, "membership failed", http.StatusInternalServerError)
-			//return
-			//ignre for now
-			fmt.Println("membership failed:", err)
-			return
-		}
-
-		SetSessionCookie(w, models.Session{
-			UserID:    u.ID,
-			ActiveOrg: org.ID,
-			Provider:  "local",
-			Expiry:    time.Now().Add(8 * time.Hour),
-		})
-		writeJSON(w, http.StatusCreated, map[string]any{"ok": true})
-	}
+        SetSessionCookie(w, models.Session{
+            UserID:    u.ID,
+            ActiveOrg: org.ID,
+            Provider:  "local",
+            Expiry:    time.Now().Add(8 * time.Hour),
+        })
+        writeJSON(w, http.StatusCreated, map[string]any{"ok": true})
+    }
 }
 
 // POST /auth/login
