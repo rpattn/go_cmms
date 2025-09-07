@@ -125,26 +125,21 @@ func CallbackHandler(providers map[ProviderKind]*Provider, r repo.Repo, cfg conf
 				})
 				return
 			}
-			// Create new user and link identity
-			nu, err3 := r.UpsertUserByVerifiedEmail(ctx, id.Email, id.Name)
-			if err3 != nil {
-				http.Error(w, "user create failed: "+err3.Error(), http.StatusInternalServerError)
+			// New user with this email does not exist: do NOT auto-create or auto-assign an organisation.
+			// Instruct the user to sign up (which creates an org) or obtain an invite.
+			if strings.TrimSpace(cfg.Frontend.URL) != "" {
+				base := strings.TrimRight(cfg.Frontend.URL, "/")
+				dest := base + "/account/register?reason=signup_required&provider=" + url.QueryEscape(string(pname)) + "&email=" + url.QueryEscape(id.Email)
+				http.Redirect(w, req, dest, http.StatusFound)
 				return
 			}
-			// Denylist check by user_id
-			if security.IsUserDenied(nu.ID) {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			}
-			if err := r.LinkIdentity(ctx, nu.ID, string(pname), id.Subject); err != nil {
-				http.Error(w, "link identity failed: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-			// Save avatar/profile if available
-			if strings.TrimSpace(id.Picture) != "" {
-				_ = r.UpdateUserProfile(ctx, nu.ID, nil, &id.Picture, nil, nil)
-			}
-			u = nu
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error":    "signup_required",
+				"message":  "No account exists for this email. Please sign up or ask for an invite.",
+				"provider": string(pname),
+				"email":    id.Email,
+			})
+			return
 		}
 
 		var org models.Org

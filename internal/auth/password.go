@@ -29,21 +29,27 @@ func SetPasswordHandler(r repo.Repo, cfg config.Config) http.HandlerFunc {
             http.Error(w, "hash error", http.StatusInternalServerError)
             return
         }
-        // Try update; if credential doesn't exist, create with username = email
-        if err := r.UpdateLocalPasswordHash(req.Context(), sess.UserID, phc); err != nil {
-            // Fallback: create local credential if missing
-            // Need user email to set username
-            u, uerr := r.GetUserByID(req.Context(), sess.UserID)
-            if uerr != nil {
-                http.Error(w, "user not found", http.StatusInternalServerError)
+        // Ensure local credential exists for this user; if not, create it.
+        u, uerr := r.GetUserByID(req.Context(), sess.UserID)
+        if uerr != nil {
+            http.Error(w, "user not found", http.StatusInternalServerError)
+            return
+        }
+        if strings.TrimSpace(u.Email) == "" {
+            http.Error(w, "user has no email", http.StatusBadRequest)
+            return
+        }
+        username := strings.ToLower(strings.TrimSpace(u.Email))
+        if _, _, err := r.GetLocalCredentialByUsername(req.Context(), username); err == nil {
+            // credential exists → update hash
+            if err := r.UpdateLocalPasswordHash(req.Context(), sess.UserID, phc); err != nil {
+                http.Error(w, "cannot update credential", http.StatusInternalServerError)
                 return
             }
-            if u.Email == "" {
-                http.Error(w, "user has no email", http.StatusBadRequest)
-                return
-            }
-            if cerr := r.CreateLocalCredential(req.Context(), sess.UserID, u.Email, phc); cerr != nil {
-                http.Error(w, "cannot set credential", http.StatusInternalServerError)
+        } else {
+            // credential missing → create with username=email
+            if err := r.CreateLocalCredential(req.Context(), sess.UserID, username, phc); err != nil {
+                http.Error(w, "cannot create credential", http.StatusInternalServerError)
                 return
             }
         }

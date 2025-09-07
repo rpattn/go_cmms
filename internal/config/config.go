@@ -67,7 +67,7 @@ func Load() Config {
 	viper.SetDefault("microsoft.tenant_id", "organizations")
 	// Frontend defaults
 	viper.SetDefault("frontend.post_login_path", "/app/work-orders")
-	viper.SetDefault("frontend.api_route", "/") //or /api/backend
+	viper.SetDefault("frontend.api_route", "") //or /api/backend
 	// Sensible logging defaults
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "text")
@@ -124,9 +124,12 @@ func Load() Config {
 	}
 	// Normalize frontend API route: ensure leading '/' and no trailing '/'
 	if strings.TrimSpace(c.Frontend.APIRoute) == "" {
-		c.Frontend.APIRoute = "/api/backend"
+		c.Frontend.APIRoute = ""
 	} else {
 		c.Frontend.APIRoute = "/" + strings.Trim(strings.TrimSpace(c.Frontend.APIRoute), "/")
+	}
+	if c.Frontend.APIRoute == "/" {
+		c.Frontend.APIRoute = ""
 	}
 	if c.BaseURL == "" {
 		panic("config error: base_url/BASE_URL required")
