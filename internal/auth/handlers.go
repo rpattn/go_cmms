@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -92,50 +93,92 @@ func CallbackHandler(providers map[ProviderKind]*Provider, r repo.Repo, cfg conf
 			return
 		}
 
-		// Upsert user + link identity
-		u, err := r.UpsertUserByVerifiedEmail(ctx, id.Email, id.Name)
-		if err != nil {
-			http.Error(w, "user upsert failed: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+        // Normalize email for matching
+        id.Email = strings.ToLower(strings.TrimSpace(id.Email))
 
-		// Denylist check by user_id
-		if security.IsUserDenied(u.ID) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		if err := r.LinkIdentity(ctx, u.ID, string(pname), id.Subject); err != nil {
-			http.Error(w, "link identity failed: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+        // First, try existing identity link
+        var (
+            u models.User
+            existingLinked bool
+        )
+        if existing, err := r.GetUserByIdentity(ctx, string(pname), id.Subject); err == nil {
+            u = existing
+            existingLinked = true
+        } else {
+            // No identity link yet. If email belongs to an existing user, do NOT auto-link.
+            if _, err2 := r.GetUserByEmail(ctx, id.Email); err2 == nil {
+                // Security: require explicit account linking. Create a temporary pending link and set cookie.
+                tok := putPending(pendingLink{Provider: string(pname), Subject: id.Subject, Email: id.Email, Name: id.Name}, 10*time.Minute)
+                setPendingCookie(w, tok, 10*time.Minute)
 
-		// Resolve org
-		org, err := resolveOrgPostLogin(ctx, r, pname, id)
-		if err != nil {
-			http.Error(w, "org resolution failed: "+err.Error(), http.StatusUnauthorized)
-			return
-		}
+                // If a frontend is configured, redirect the browser to a client route to complete linking.
+                if strings.TrimSpace(cfg.Frontend.URL) != "" {
+                    base := strings.TrimRight(cfg.Frontend.URL, "/")
+                    dest := base + "/auth/link?reason=link_required&provider=" + url.QueryEscape(string(pname))
+                    http.Redirect(w, req, dest, http.StatusFound)
+                    return
+                }
+                // Otherwise return an API response (for non-browser clients)
+                writeJSON(w, http.StatusConflict, map[string]any{
+                    "error":    "link_required",
+                    "provider": string(pname),
+                })
+                return
+            }
+            // Create new user and link identity
+            nu, err3 := r.UpsertUserByVerifiedEmail(ctx, id.Email, id.Name)
+            if err3 != nil {
+                http.Error(w, "user create failed: "+err3.Error(), http.StatusInternalServerError)
+                return
+            }
+            // Denylist check by user_id
+            if security.IsUserDenied(nu.ID) {
+                http.Error(w, "forbidden", http.StatusForbidden)
+                return
+            }
+            if err := r.LinkIdentity(ctx, nu.ID, string(pname), id.Subject); err != nil {
+                http.Error(w, "link identity failed: "+err.Error(), http.StatusInternalServerError)
+                return
+            }
+            u = nu
+        }
 
-		// Ensure membership (JIT) + optionally map IdP groups -> role
-		role, err := r.EnsureMembership(ctx, org.ID, u.ID, models.RoleMember)
-		if err != nil {
-			http.Error(w, "membership failed: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if len(id.Groups) > 0 {
-			if upgraded, err := r.ApplyGroupRoleMappings(ctx, org.ID, string(pname), id.Groups); err == nil && upgraded != "" {
-				_ = role // you can persist upgraded role if desired
-				role = upgraded
-			}
-		}
+        var org models.Org
+        if existingLinked {
+            // For already linked accounts, do NOT change org membership; pick an existing org.
+            org, err = r.PickUserOrg(ctx, u.ID)
+            if err != nil {
+                http.Error(w, "no organisation", http.StatusForbidden)
+                return
+            }
+        } else {
+            // New account: resolve org and ensure membership.
+            org, err = resolveOrgPostLogin(ctx, r, pname, id)
+            if err != nil {
+                http.Error(w, "org resolution failed: "+err.Error(), http.StatusUnauthorized)
+                return
+            }
+            // Ensure membership (JIT) + optionally map IdP groups -> role
+            role, err := r.EnsureMembership(ctx, org.ID, u.ID, models.RoleMember)
+            if err != nil {
+                http.Error(w, "membership failed: "+err.Error(), http.StatusInternalServerError)
+                return
+            }
+            if len(id.Groups) > 0 {
+                if upgraded, err := r.ApplyGroupRoleMappings(ctx, org.ID, string(pname), id.Groups); err == nil && upgraded != "" {
+                    _ = role // you can persist upgraded role if desired
+                    role = upgraded
+                }
+            }
+        }
 
-		// Create session
-		SetSessionCookie(w, models.Session{
-			UserID:    u.ID,
-			ActiveOrg: org.ID,
-			Provider:  string(pname),
-			Expiry:    time.Now().Add(8 * time.Hour),
-		})
+        // Create session
+        SetSessionCookie(w, models.Session{
+            UserID:    u.ID,
+            ActiveOrg: org.ID,
+            Provider:  string(pname),
+            Expiry:    time.Now().Add(8 * time.Hour),
+        })
 
 		// Redirect to frontend if configured; otherwise fallback to current host
 		if strings.TrimSpace(cfg.Frontend.URL) != "" {

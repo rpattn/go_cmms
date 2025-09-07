@@ -13,8 +13,10 @@ import (
 
 // Repo defines the methods the rest of the app uses.
 type Repo interface {
-	UpsertUserByVerifiedEmail(ctx context.Context, email, name string) (models.User, error)
-	LinkIdentity(ctx context.Context, userID uuid.UUID, provider, subject string) error
+    UpsertUserByVerifiedEmail(ctx context.Context, email, name string) (models.User, error)
+    LinkIdentity(ctx context.Context, userID uuid.UUID, provider, subject string) error
+    GetUserByIdentity(ctx context.Context, provider, subject string) (models.User, error)
+    GetUserByEmail(ctx context.Context, email string) (models.User, error)
 
 	FindOrgBySlug(ctx context.Context, slug string) (models.Org, error)
 	FindOrgByID(ctx context.Context, id uuid.UUID) (models.Org, error)

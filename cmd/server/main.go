@@ -100,8 +100,9 @@ func main() {
 
 	// Local auth routes
 	mux.Post("/auth/signup", auth.SignupHandler(r))
-	mux.Post("/auth/login", auth.LoginHandler(r))
-	mux.Post("/auth/logout", auth.LogoutHandler())
+    mux.Post("/auth/login", auth.LoginHandler(r))
+    mux.Post("/auth/logout", auth.LogoutHandler())
+    mux.Post("/auth/link/password", auth.LinkWithPasswordHandler(r, cfg))
 	mux.Get("/auth/mfa/totp/setup", auth.TOTPSetupBeginHandler(r))
 	mux.Post("/auth/mfa/totp/verify", auth.TOTPSetupVerifyHandler(r))
 

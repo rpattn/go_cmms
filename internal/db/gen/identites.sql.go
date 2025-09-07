@@ -39,7 +39,7 @@ const linkIdentity = `-- name: LinkIdentity :exec
 INSERT INTO identities (user_id, provider, subject)
 VALUES ($1, $2, $3)
 ON CONFLICT (provider, subject)
-DO UPDATE SET user_id = EXCLUDED.user_id
+DO NOTHING
 `
 
 type LinkIdentityParams struct {

@@ -40,6 +40,34 @@ func (p *pgRepo) LinkIdentity(ctx context.Context, userID uuid.UUID, provider, s
     })
 }
 
+func (p *pgRepo) GetUserByIdentity(ctx context.Context, provider, subject string) (models.User, error) {
+    slog.DebugContext(ctx, "GetUserByIdentity", "provider", provider)
+    row, err := p.q.GetUserByIdentity(ctx, db.GetUserByIdentityParams{Provider: provider, Subject: subject})
+    if err != nil {
+        slog.ErrorContext(ctx, "GetUserByIdentity failed", "err", err)
+        return models.User{}, err
+    }
+    return models.User{
+        ID:    toUUID(row.ID),
+        Email: row.Email,
+        Name:  fromText(row.Name),
+    }, nil
+}
+
+func (p *pgRepo) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
+    slog.DebugContext(ctx, "GetUserByEmail", "email", email)
+    row, err := p.q.GetUserByEmail(ctx, email)
+    if err != nil {
+        slog.ErrorContext(ctx, "GetUserByEmail failed", "err", err)
+        return models.User{}, err
+    }
+    return models.User{
+        ID:    toUUID(row.ID),
+        Email: row.Email,
+        Name:  fromText(row.Name),
+    }, nil
+}
+
 // GetUserByUUID fetches a user by their UUID.
 func (p *pgRepo) GetUserByID(ctx context.Context, id uuid.UUID) (models.User, error) {
     slog.DebugContext(ctx, "GetUserByID", "user_id", id.String())
