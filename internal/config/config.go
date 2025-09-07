@@ -10,6 +10,10 @@ import (
 
 type Config struct {
     BaseURL  string `mapstructure:"base_url"`
+    Frontend struct {
+        URL            string `mapstructure:"url"`
+        PostLoginPath  string `mapstructure:"post_login_path"`
+    } `mapstructure:"frontend"`
     Database struct {
         URL string `mapstructure:"url"`
     } `mapstructure:"database"`
@@ -60,6 +64,8 @@ type Config struct {
 
 func Load() Config {
     viper.SetDefault("microsoft.tenant_id", "organizations")
+    // Frontend defaults
+    viper.SetDefault("frontend.post_login_path", "/app/work-orders")
     // Sensible logging defaults
     viper.SetDefault("logging.level", "info")
     viper.SetDefault("logging.format", "text")
@@ -86,6 +92,8 @@ func Load() Config {
 
 	// explicit bindings
 	_ = viper.BindEnv("base_url", "BASE_URL")
+    _ = viper.BindEnv("frontend.url", "FRONTEND_URL")
+    _ = viper.BindEnv("frontend.post_login_path", "FRONTEND_POST_LOGIN_PATH")
     _ = viper.BindEnv("database.url", "DATABASE_URL")
     _ = viper.BindEnv("logging.level", "LOG_LEVEL")
     _ = viper.BindEnv("logging.format", "LOG_FORMAT")

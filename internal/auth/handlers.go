@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"yourapp/internal/config"
 	"yourapp/internal/models"
 	"yourapp/internal/repo"
-    "yourapp/internal/security"
+	"yourapp/internal/security"
 
 	//"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
@@ -54,7 +55,7 @@ func StartHandler(providers map[ProviderKind]*Provider, r repo.Repo) http.Handle
 }
 
 // CallbackHandler: GET /auth/{provider}/callback
-func CallbackHandler(providers map[ProviderKind]*Provider, r repo.Repo) http.HandlerFunc {
+func CallbackHandler(providers map[ProviderKind]*Provider, r repo.Repo, cfg config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		ctx := req.Context()
 		pname := ProviderKind(chi.URLParam(req, "provider"))
@@ -136,7 +137,28 @@ func CallbackHandler(providers map[ProviderKind]*Provider, r repo.Repo) http.Han
 			Expiry:    time.Now().Add(8 * time.Hour),
 		})
 
-		http.Redirect(w, req, fmt.Sprintf("/orgs/%s/projects", org.Slug), http.StatusFound)
+		// Redirect to frontend if configured; otherwise fallback to current host
+		if strings.TrimSpace(cfg.Frontend.URL) != "" {
+			base := strings.TrimRight(cfg.Frontend.URL, "/")
+			path := cfg.Frontend.PostLoginPath
+			if strings.TrimSpace(path) == "" {
+				path = "/app/work-orders"
+			}
+			path = "/" + strings.TrimLeft(path, "/")
+			http.Redirect(w, req, base+path, http.StatusFound)
+			return
+		}
+
+		// Fallback uses same host and scheme inferred from headers
+		scheme := req.Header.Get("X-Forwarded-Proto")
+		if scheme == "" {
+			scheme = "http"
+		}
+		host := req.Header.Get("X-Forwarded-Host")
+		if host == "" {
+			host = req.Host
+		}
+		http.Redirect(w, req, scheme+"://"+host+"/app/work-orders", http.StatusFound)
 	}
 }
 

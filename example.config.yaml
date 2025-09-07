@@ -4,6 +4,11 @@
 # In local dev, this is usually http://localhost:8080
 base_url: "http://localhost:8080"
 
+# Frontend configuration (optional)
+frontend:
+  url: "http://localhost:3000"
+  post_login_path: "/app/work-orders"
+
 # Database connection string for Postgres
 database:
   url: "postgres://postgres:admin@localhost:5432/go_cmms_test?sslmode=disable"

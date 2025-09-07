@@ -95,8 +95,8 @@ func main() {
 
 	// OAuth/OIDC routes
 	slog.Debug("oauth providers configured", "providers", providers)
-	mux.Get("/auth/{provider}", auth.StartHandler(providers, r))
-	mux.Get("/auth/{provider}/callback", auth.CallbackHandler(providers, r))
+    mux.Get("/auth/{provider}", auth.StartHandler(providers, r))
+    mux.Get("/auth/{provider}/callback", auth.CallbackHandler(providers, r, cfg))
 
 	// Local auth routes
 	mux.Post("/auth/signup", auth.SignupHandler(r))
