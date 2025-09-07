@@ -1,10 +1,13 @@
 -- name: ListWorkOrdersPaged :many
 WITH
 params AS (
-  SELECT $1::jsonb AS p
+  SELECT
+    sqlc.arg(org_id)::uuid   AS org_id,
+    sqlc.arg(payload)::jsonb AS p
 ),
 page AS (
   SELECT
+    org_id,
     COALESCE((p->>'pageNum')::int, 0)  AS page_num,
     COALESCE((p->>'pageSize')::int,50) AS page_size
   FROM params
@@ -49,7 +52,8 @@ filtered AS (
   LEFT JOIN archived_eq  a  ON TRUE
   LEFT JOIN text_cn      t  ON TRUE
   WHERE
-    (sv.vals = '{}'::text[] OR w.status = ANY (sv.vals))
+    (w.organisation_id = (SELECT org_id FROM params))
+    AND (sv.vals = '{}'::text[] OR w.status = ANY (sv.vals))
     AND (a.archived IS NULL OR w.archived = a.archived)
     AND (
       t.term IS NULL

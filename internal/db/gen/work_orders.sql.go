@@ -174,10 +174,13 @@ func (q *Queries) GetWorkOrderDetail(ctx context.Context, dollar_1 pgtype.UUID) 
 const listWorkOrdersPaged = `-- name: ListWorkOrdersPaged :many
 WITH
 params AS (
-  SELECT $1::jsonb AS p
+  SELECT
+    $1::uuid   AS org_id,
+    $2::jsonb AS p
 ),
 page AS (
   SELECT
+    org_id,
     COALESCE((p->>'pageNum')::int, 0)  AS page_num,
     COALESCE((p->>'pageSize')::int,50) AS page_size
   FROM params
@@ -220,7 +223,8 @@ filtered AS (
   LEFT JOIN archived_eq  a  ON TRUE
   LEFT JOIN text_cn      t  ON TRUE
   WHERE
-    (sv.vals = '{}'::text[] OR w.status = ANY (sv.vals))
+    (w.organisation_id = (SELECT org_id FROM params))
+    AND (sv.vals = '{}'::text[] OR w.status = ANY (sv.vals))
     AND (a.archived IS NULL OR w.archived = a.archived)
     AND (
       t.term IS NULL
@@ -282,6 +286,11 @@ WHERE o.rn > b.off AND o.rn <= b.lim
 ORDER BY o.rn
 `
 
+type ListWorkOrdersPagedParams struct {
+	OrgID   pgtype.UUID `db:"org_id" json:"org_id"`
+	Payload []byte      `db:"payload" json:"payload"`
+}
+
 type ListWorkOrdersPagedRow struct {
 	ID                      pgtype.UUID        `db:"id" json:"id"`
 	OrganisationID          pgtype.UUID        `db:"organisation_id" json:"organisation_id"`
@@ -317,8 +326,8 @@ type ListWorkOrdersPagedRow struct {
 
 // generic text search (title + description)
 // NEW: sort options (whitelisted later)
-func (q *Queries) ListWorkOrdersPaged(ctx context.Context, dollar_1 []byte) ([]ListWorkOrdersPagedRow, error) {
-	rows, err := q.db.Query(ctx, listWorkOrdersPaged, dollar_1)
+func (q *Queries) ListWorkOrdersPaged(ctx context.Context, arg ListWorkOrdersPagedParams) ([]ListWorkOrdersPagedRow, error) {
+	rows, err := q.db.Query(ctx, listWorkOrdersPaged, arg.OrgID, arg.Payload)
 	if err != nil {
 		return nil, err
 	}
