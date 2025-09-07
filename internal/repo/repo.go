@@ -2,8 +2,10 @@
 package repo
 
 import (
-	"context"
-	"encoding/json"
+    "context"
+    "encoding/json"
+    "time"
+    "net/netip"
 
 	"github.com/google/uuid"
 
@@ -23,7 +25,10 @@ type Repo interface {
 	FindOrgByTenantID(ctx context.Context, tid string) (models.Org, error)
 	EnsureMembership(ctx context.Context, orgID, userID uuid.UUID, defaultRole models.OrgRole) (models.OrgRole, error)
 	GetRole(ctx context.Context, orgID, userID uuid.UUID) (models.OrgRole, error)
-	GetUserWithOrgAndRole(ctx context.Context, uid, oid uuid.UUID) (models.User, models.Org, models.OrgRole, error)
+    GetUserWithOrgAndRole(ctx context.Context, uid, oid uuid.UUID) (models.User, models.Org, models.OrgRole, error)
+    ListIdentitiesForUser(ctx context.Context, uid uuid.UUID) ([]models.LinkedIdentity, error)
+    ListUserOrgs(ctx context.Context, uid uuid.UUID) ([]models.OrgSummary, error)
+    GetLastSuccessfulLoginByUsername(ctx context.Context, username string) (time.Time, bool)
 	ApplyGroupRoleMappings(ctx context.Context, orgID uuid.UUID, provider string, groupIDs []string) (models.OrgRole, error)
 
 	// Local auth
@@ -38,7 +43,10 @@ type Repo interface {
 
 	UserHasTOTP(ctx context.Context, uid uuid.UUID) bool
 	SetTOTPSecret(ctx context.Context, uid uuid.UUID, secret, issuer, label string) error
-	GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool)
+    GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool)
+
+    // User profile updates
+    UpdateUserProfile(ctx context.Context, userID uuid.UUID, name *string, avatarURL *string, phone *string, country *string) error
 
 	ListWorkOrdersPaged(ctx context.Context, org_id uuid.UUID, arg []byte) ([]models.WorkOrder, int64, error)
 	GetWorkOrderDetail(ctx context.Context, id uuid.UUID) (json.RawMessage, error)
@@ -47,12 +55,16 @@ type Repo interface {
 	UpdateWorkOrderFromJSON(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID, user_id uuid.UUID, payload []byte) (uuid.UUID, error)
 	DeleteWorkOrderByID(ctx context.Context, org_id, workOrderID uuid.UUID) error
 
-	// Tasks
+    // Tasks
 	GetTasksByWorkOrderID(ctx context.Context, org_id uuid.UUID, workOrderID uuid.UUID) ([]db.GetTasksByWorkOrderIDRow, error)
 	ListSimpleTasksByWorkOrderID(ctx context.Context, org_id, workOrderID uuid.UUID) ([]db.ListSimpleTasksByWorkOrderRow, error)
 	MarkTaskComplete(ctx context.Context, org_id uuid.UUID, taskID uuid.UUID) (db.MarkTaskCompleteRow, error)
 	DeleteTaskByID(ctx context.Context, org_id, taskID uuid.UUID) error
-	ToggleTaskComplete(ctx context.Context, org_id uuid.UUID, taskID uuid.UUID, complete bool) (db.ToggleTaskCompletionRow, error)
+    ToggleTaskComplete(ctx context.Context, org_id uuid.UUID, taskID uuid.UUID, complete bool) (db.ToggleTaskCompletionRow, error)
+
+    // Login events
+    RecordLoginSuccess(ctx context.Context, username string, ip netip.Addr) error
+    RecordLoginFailure(ctx context.Context, username string, ip netip.Addr) error
 }
 
 // pgRepo wraps the sqlc Queries.

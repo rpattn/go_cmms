@@ -122,6 +122,9 @@ func LoginHandler(r repo.Repo) http.HandlerFunc {
 		if !VerifyPassword(body.Password, cred.PasswordHash) {
 			http.Error(w, "invalid login", http.StatusUnauthorized)
 			log.Println("login bad password for user:", username)
+			if ip, ok := clientIP(req); ok {
+				_ = r.RecordLoginFailure(req.Context(), username, ip)
+			}
 			return
 		}
 
@@ -160,6 +163,11 @@ func LoginHandler(r repo.Repo) http.HandlerFunc {
 			Provider:  "local",
 			Expiry:    time.Now().Add(8 * time.Hour),
 		})
+
+		// Record successful local login
+		if ip, ok := clientIP(req); ok {
+			_ = r.RecordLoginSuccess(req.Context(), username, ip)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
 }

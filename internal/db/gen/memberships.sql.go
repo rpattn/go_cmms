@@ -50,6 +50,56 @@ func (q *Queries) GetRole(ctx context.Context, arg GetRoleParams) (string, error
 	return role, err
 }
 
+const listUserOrgs = `-- name: ListUserOrgs :many
+SELECT 
+  o.id,
+  o.slug,
+  o.name,
+  o.ms_tenant_id,
+  o.created_at,
+  m.role::text AS role
+FROM org_memberships m
+JOIN organisations o ON o.id = m.org_id
+WHERE m.user_id = $1
+ORDER BY o.created_at ASC
+`
+
+type ListUserOrgsRow struct {
+	ID         pgtype.UUID        `db:"id" json:"id"`
+	Slug       string             `db:"slug" json:"slug"`
+	Name       string             `db:"name" json:"name"`
+	MsTenantID pgtype.Text        `db:"ms_tenant_id" json:"ms_tenant_id"`
+	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	Role       string             `db:"role" json:"role"`
+}
+
+func (q *Queries) ListUserOrgs(ctx context.Context, userID pgtype.UUID) ([]ListUserOrgsRow, error) {
+	rows, err := q.db.Query(ctx, listUserOrgs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserOrgsRow
+	for rows.Next() {
+		var i ListUserOrgsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.MsTenantID,
+			&i.CreatedAt,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pickUserOrg = `-- name: PickUserOrg :one
 SELECT o.id, o.slug, o.name, o.ms_tenant_id, o.created_at
 FROM org_memberships m

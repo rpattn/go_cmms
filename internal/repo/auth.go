@@ -4,6 +4,7 @@ import (
     "context"
     "log/slog"
     "strings"
+    "net/netip"
 
     "github.com/google/uuid"
 
@@ -70,4 +71,24 @@ func (p *pgRepo) GetTOTPSecret(ctx context.Context, uid uuid.UUID) (string, bool
         return "", false
     }
     return sec, true
+}
+
+// -------- Login attempt recording --------
+
+func (p *pgRepo) RecordLoginSuccess(ctx context.Context, username string, ip netip.Addr) error {
+    slog.DebugContext(ctx, "RecordLoginSuccess", "username", strings.ToLower(username), "ip", ip.String())
+    return p.q.RecordLoginAttempt(ctx, db.RecordLoginAttemptParams{
+        Lower:   strings.ToLower(username),
+        Ip:      ip,
+        Success: true,
+    })
+}
+
+func (p *pgRepo) RecordLoginFailure(ctx context.Context, username string, ip netip.Addr) error {
+    slog.DebugContext(ctx, "RecordLoginFailure", "username", strings.ToLower(username), "ip", ip.String())
+    return p.q.RecordLoginAttempt(ctx, db.RecordLoginAttemptParams{
+        Lower:   strings.ToLower(username),
+        Ip:      ip,
+        Success: false,
+    })
 }

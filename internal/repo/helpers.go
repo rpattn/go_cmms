@@ -20,6 +20,10 @@ func toPgUUID(id uuid.UUID) pgtype.UUID {
 // Text conversions
 func toText(s string) pgtype.Text { return pgtype.Text{String: s, Valid: true} }
 func fromText(t pgtype.Text) string { return t.String }
+func toNullText(p *string) pgtype.Text {
+    if p == nil { return pgtype.Text{} }
+    return pgtype.Text{String: *p, Valid: true}
+}
 
 // Role ranking utility (for best-match selection)
 func rankRole(r string) int {
@@ -73,4 +77,3 @@ func toTime(v any) time.Time {
     }
     return time.Time{}
 }
-

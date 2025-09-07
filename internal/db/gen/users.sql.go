@@ -12,7 +12,7 @@ import (
 )
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, created_at FROM users WHERE email = $1
+SELECT id, email, name, avatar_url, phone, country, created_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -22,13 +22,16 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.ID,
 		&i.Email,
 		&i.Name,
+		&i.AvatarUrl,
+		&i.Phone,
+		&i.Country,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, created_at FROM users WHERE id = $1
+SELECT id, email, name, avatar_url, phone, country, created_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -38,6 +41,9 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.ID,
 		&i.Email,
 		&i.Name,
+		&i.AvatarUrl,
+		&i.Phone,
+		&i.Country,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -49,7 +55,7 @@ WITH
     SELECT $1::uuid AS user_id, $2::uuid AS org_id
   ),
   u AS (
-    SELECT u.id, u.email, u.name, u.created_at
+    SELECT u.id, u.email, u.name, u.avatar_url, u.phone, u.country, u.created_at
     FROM users u
     JOIN input i ON u.id = i.user_id
   ),
@@ -68,6 +74,9 @@ SELECT
   u.id            AS user_id,
   u.email         AS user_email,
   u.name          AS user_name,
+  u.avatar_url    AS user_avatar_url,
+  u.phone         AS user_phone,
+  u.country       AS user_country,
   o.id            AS org_id,
   o.slug          AS org_slug,
   o.name          AS org_name,
@@ -88,16 +97,19 @@ type GetUserWithOrgAndRoleParams struct {
 }
 
 type GetUserWithOrgAndRoleRow struct {
-	UserID     pgtype.UUID `db:"user_id" json:"user_id"`
-	UserEmail  pgtype.Text `db:"user_email" json:"user_email"`
-	UserName   pgtype.Text `db:"user_name" json:"user_name"`
-	OrgID      pgtype.UUID `db:"org_id" json:"org_id"`
-	OrgSlug    pgtype.Text `db:"org_slug" json:"org_slug"`
-	OrgName    pgtype.Text `db:"org_name" json:"org_name"`
-	Role       string      `db:"role" json:"role"`
-	UserExists bool        `db:"user_exists" json:"user_exists"`
-	OrgExists  bool        `db:"org_exists" json:"org_exists"`
-	RoleExists bool        `db:"role_exists" json:"role_exists"`
+	UserID        pgtype.UUID `db:"user_id" json:"user_id"`
+	UserEmail     pgtype.Text `db:"user_email" json:"user_email"`
+	UserName      pgtype.Text `db:"user_name" json:"user_name"`
+	UserAvatarUrl pgtype.Text `db:"user_avatar_url" json:"user_avatar_url"`
+	UserPhone     pgtype.Text `db:"user_phone" json:"user_phone"`
+	UserCountry   pgtype.Text `db:"user_country" json:"user_country"`
+	OrgID         pgtype.UUID `db:"org_id" json:"org_id"`
+	OrgSlug       pgtype.Text `db:"org_slug" json:"org_slug"`
+	OrgName       pgtype.Text `db:"org_name" json:"org_name"`
+	Role          string      `db:"role" json:"role"`
+	UserExists    bool        `db:"user_exists" json:"user_exists"`
+	OrgExists     bool        `db:"org_exists" json:"org_exists"`
+	RoleExists    bool        `db:"role_exists" json:"role_exists"`
 }
 
 // params: $1 = user_id (UUID), $2 = org_id (UUID)
@@ -108,6 +120,9 @@ func (q *Queries) GetUserWithOrgAndRole(ctx context.Context, arg GetUserWithOrgA
 		&i.UserID,
 		&i.UserEmail,
 		&i.UserName,
+		&i.UserAvatarUrl,
+		&i.UserPhone,
+		&i.UserCountry,
 		&i.OrgID,
 		&i.OrgSlug,
 		&i.OrgName,
@@ -254,12 +269,40 @@ func (q *Queries) SearchOrgUsers(ctx context.Context, arg SearchOrgUsersParams) 
 	return items, nil
 }
 
+const updateUserProfile = `-- name: UpdateUserProfile :exec
+UPDATE users SET
+  name       = COALESCE($1, name),
+  avatar_url = COALESCE($2, avatar_url),
+  phone      = COALESCE($3, phone),
+  country    = COALESCE($4, country)
+WHERE id = $5::uuid
+`
+
+type UpdateUserProfileParams struct {
+	Name      pgtype.Text `db:"name" json:"name"`
+	AvatarUrl pgtype.Text `db:"avatar_url" json:"avatar_url"`
+	Phone     pgtype.Text `db:"phone" json:"phone"`
+	Country   pgtype.Text `db:"country" json:"country"`
+	UserID    pgtype.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) error {
+	_, err := q.db.Exec(ctx, updateUserProfile,
+		arg.Name,
+		arg.AvatarUrl,
+		arg.Phone,
+		arg.Country,
+		arg.UserID,
+	)
+	return err
+}
+
 const upsertUserByVerifiedEmail = `-- name: UpsertUserByVerifiedEmail :one
 INSERT INTO users (email, name)
 VALUES ($1, $2)
 ON CONFLICT (email)
 DO UPDATE SET name = COALESCE(users.name, EXCLUDED.name)
-RETURNING id, email, name, created_at
+RETURNING id, email, name, avatar_url, phone, country, created_at
 `
 
 type UpsertUserByVerifiedEmailParams struct {
@@ -274,6 +317,9 @@ func (q *Queries) UpsertUserByVerifiedEmail(ctx context.Context, arg UpsertUserB
 		&i.ID,
 		&i.Email,
 		&i.Name,
+		&i.AvatarUrl,
+		&i.Phone,
+		&i.Country,
 		&i.CreatedAt,
 	)
 	return i, err

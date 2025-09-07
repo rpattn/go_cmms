@@ -18,7 +18,7 @@ WITH
     SELECT $1::uuid AS user_id, $2::uuid AS org_id
   ),
   u AS (
-    SELECT u.id, u.email, u.name, u.created_at
+    SELECT u.id, u.email, u.name, u.avatar_url, u.phone, u.country, u.created_at
     FROM users u
     JOIN input i ON u.id = i.user_id
   ),
@@ -37,6 +37,9 @@ SELECT
   u.id            AS user_id,
   u.email         AS user_email,
   u.name          AS user_name,
+  u.avatar_url    AS user_avatar_url,
+  u.phone         AS user_phone,
+  u.country       AS user_country,
   o.id            AS org_id,
   o.slug          AS org_slug,
   o.name          AS org_name,
@@ -146,3 +149,11 @@ FROM filtered
 ORDER BY created_at DESC
 LIMIT (SELECT page_size FROM params)
 OFFSET (SELECT page_size * page_num FROM params);
+
+-- name: UpdateUserProfile :exec
+UPDATE users SET
+  name       = COALESCE(sqlc.narg(name), name),
+  avatar_url = COALESCE(sqlc.narg(avatar_url), avatar_url),
+  phone      = COALESCE(sqlc.narg(phone), phone),
+  country    = COALESCE(sqlc.narg(country), country)
+WHERE id = sqlc.arg(user_id)::uuid;

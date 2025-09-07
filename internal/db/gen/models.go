@@ -105,6 +105,22 @@ type Request struct {
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
+type SeedCfg struct {
+	Email    pgtype.Text `db:"email" json:"email"`
+	Name     pgtype.Text `db:"name" json:"name"`
+	Username pgtype.Text `db:"username" json:"username"`
+	Phc      pgtype.Text `db:"phc" json:"phc"`
+	OrgSlug  pgtype.Text `db:"org_slug" json:"org_slug"`
+	OrgName  pgtype.Text `db:"org_name" json:"org_name"`
+	MsTenant pgtype.Text `db:"ms_tenant" json:"ms_tenant"`
+}
+
+type SeedOrg struct {
+	Slug       pgtype.Text `db:"slug" json:"slug"`
+	Name       pgtype.Text `db:"name" json:"name"`
+	MsTenantID pgtype.Text `db:"ms_tenant_id" json:"ms_tenant_id"`
+}
+
 type Task struct {
 	ID                      pgtype.UUID        `db:"id" json:"id"`
 	OrganisationID          pgtype.UUID        `db:"organisation_id" json:"organisation_id"`
@@ -157,6 +173,9 @@ type User struct {
 	ID        pgtype.UUID        `db:"id" json:"id"`
 	Email     string             `db:"email" json:"email"`
 	Name      pgtype.Text        `db:"name" json:"name"`
+	AvatarUrl pgtype.Text        `db:"avatar_url" json:"avatar_url"`
+	Phone     pgtype.Text        `db:"phone" json:"phone"`
+	Country   pgtype.Text        `db:"country" json:"country"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 

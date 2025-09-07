@@ -5,6 +5,8 @@ import (
     "context"
     "net/http"
     "time"
+    "net/netip"
+    "strings"
 
     "yourapp/internal/models"
     "yourapp/internal/session"
@@ -117,4 +119,33 @@ func WithSession(ctx context.Context, s *models.Session) context.Context {
 func GetSessionFromContext(ctx context.Context) (*models.Session, bool) {
 	s, ok := ctx.Value(ctxKeySession{}).(*models.Session)
 	return s, ok
+}
+
+// clientIP extracts a best-effort client IP from headers or RemoteAddr.
+func clientIP(r *http.Request) (netip.Addr, bool) {
+    // Try common proxy header first
+    if ff := r.Header.Get("X-Forwarded-For"); ff != "" {
+        // XFF may be a list: client, proxy1, proxy2
+        parts := strings.Split(ff, ",")
+        if len(parts) > 0 {
+            if ip, err := netip.ParseAddr(strings.TrimSpace(parts[0])); err == nil {
+                return ip, true
+            }
+        }
+    }
+    // Fallback to X-Real-IP
+    if rip := r.Header.Get("X-Real-IP"); rip != "" {
+        if ip, err := netip.ParseAddr(strings.TrimSpace(rip)); err == nil {
+            return ip, true
+        }
+    }
+    // RemoteAddr may include port
+    host := r.RemoteAddr
+    if i := strings.LastIndex(host, ":"); i > 0 {
+        host = host[:i]
+    }
+    if ip, err := netip.ParseAddr(host); err == nil {
+        return ip, true
+    }
+    return netip.Addr{}, false
 }

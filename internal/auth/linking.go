@@ -18,6 +18,7 @@ type pendingLink struct {
     Subject  string
     Email    string
     Name     string
+    Picture  string
     Expires  time.Time
 }
 
@@ -161,6 +162,11 @@ func LinkWithPasswordHandler(r repo.Repo, cfg config.Config) http.HandlerFunc {
             return
         }
 
+        // Save avatar/profile if available
+        if strings.TrimSpace(pl.Picture) != "" {
+            _ = r.UpdateUserProfile(req.Context(), user.ID, nil, &pl.Picture, nil, nil)
+        }
+
         // Success: clear cookie and pending state
         delPending(token)
         http.SetCookie(w, &http.Cookie{
@@ -185,6 +191,11 @@ func LinkWithPasswordHandler(r repo.Repo, cfg config.Config) http.HandlerFunc {
             Provider:  pl.Provider,
             Expiry:    time.Now().Add(8 * time.Hour),
         })
+
+        // Record successful login after linking
+        if ip, ok := clientIP(req); ok {
+            _ = r.RecordLoginSuccess(req.Context(), user.Email, ip)
+        }
         // Redirect to frontend if configured; otherwise fallback to current host
         if strings.TrimSpace(cfg.Frontend.URL) != "" {
             base := strings.TrimRight(cfg.Frontend.URL, "/")

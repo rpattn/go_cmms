@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"net/netip"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countRecentFailures = `-- name: CountRecentFailures :one
@@ -29,6 +31,21 @@ func (q *Queries) CountRecentFailures(ctx context.Context, arg CountRecentFailur
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const getLastSuccessfulLoginByUsername = `-- name: GetLastSuccessfulLoginByUsername :one
+SELECT ts
+FROM login_attempts
+WHERE success = true AND username = LOWER($1)
+ORDER BY ts DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLastSuccessfulLoginByUsername(ctx context.Context, lower string) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, getLastSuccessfulLoginByUsername, lower)
+	var ts pgtype.Timestamptz
+	err := row.Scan(&ts)
+	return ts, err
 }
 
 const recordLoginAttempt = `-- name: RecordLoginAttempt :exec

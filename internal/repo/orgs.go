@@ -137,3 +137,21 @@ func (p *pgRepo) PickUserOrg(ctx context.Context, uid uuid.UUID) (models.Org, er
         TenantID: fromText(o.MsTenantID),
     }, nil
 }
+
+func (p *pgRepo) ListUserOrgs(ctx context.Context, uid uuid.UUID) ([]models.OrgSummary, error) {
+    rows, err := p.q.ListUserOrgs(ctx, fromUUID(uid))
+    if err != nil {
+        return nil, err
+    }
+    res := make([]models.OrgSummary, 0, len(rows))
+    for _, r := range rows {
+        res = append(res, models.OrgSummary{
+            ID:        toUUID(r.ID),
+            Slug:      r.Slug,
+            Name:      r.Name,
+            Role:      models.OrgRole(r.Role),
+            CreatedAt: toTime(r.CreatedAt),
+        })
+    }
+    return res, nil
+}

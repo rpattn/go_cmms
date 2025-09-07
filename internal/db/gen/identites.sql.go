@@ -12,7 +12,7 @@ import (
 )
 
 const getUserByIdentity = `-- name: GetUserByIdentity :one
-SELECT u.id, u.email, u.name, u.created_at
+SELECT u.id, u.email, u.name, u.avatar_url, u.phone, u.country, u.created_at
 FROM identities i
 JOIN users u ON u.id = i.user_id
 WHERE i.provider = $1 AND i.subject = $2
@@ -30,6 +30,9 @@ func (q *Queries) GetUserByIdentity(ctx context.Context, arg GetUserByIdentityPa
 		&i.ID,
 		&i.Email,
 		&i.Name,
+		&i.AvatarUrl,
+		&i.Phone,
+		&i.Country,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -51,4 +54,36 @@ type LinkIdentityParams struct {
 func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) error {
 	_, err := q.db.Exec(ctx, linkIdentity, arg.UserID, arg.Provider, arg.Subject)
 	return err
+}
+
+const listIdentitiesForUser = `-- name: ListIdentitiesForUser :many
+SELECT provider, subject
+FROM identities
+WHERE user_id = $1
+ORDER BY provider, subject
+`
+
+type ListIdentitiesForUserRow struct {
+	Provider string `db:"provider" json:"provider"`
+	Subject  string `db:"subject" json:"subject"`
+}
+
+func (q *Queries) ListIdentitiesForUser(ctx context.Context, userID pgtype.UUID) ([]ListIdentitiesForUserRow, error) {
+	rows, err := q.db.Query(ctx, listIdentitiesForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListIdentitiesForUserRow
+	for rows.Next() {
+		var i ListIdentitiesForUserRow
+		if err := rows.Scan(&i.Provider, &i.Subject); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

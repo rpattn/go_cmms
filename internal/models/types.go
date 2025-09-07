@@ -35,6 +35,22 @@ type User struct {
     ID    uuid.UUID
     Email string
     Name  string
+    AvatarURL string
+    Phone string
+    Country string
+}
+
+type LinkedIdentity struct {
+    Provider string
+    Subject  string
+}
+
+type OrgSummary struct {
+    ID       uuid.UUID
+    Slug     string
+    Name     string
+    Role     OrgRole
+    CreatedAt time.Time
 }
 
 type Location struct {

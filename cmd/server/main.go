@@ -103,8 +103,9 @@ func main() {
     mux.Post("/auth/login", auth.LoginHandler(r))
     mux.Post("/auth/logout", auth.LogoutHandler())
     mux.Post("/auth/link/password", auth.LinkWithPasswordHandler(r, cfg))
-	mux.Get("/auth/mfa/totp/setup", auth.TOTPSetupBeginHandler(r))
-	mux.Post("/auth/mfa/totp/verify", auth.TOTPSetupVerifyHandler(r))
+    mux.Get("/auth/mfa/totp/setup", auth.TOTPSetupBeginHandler(r))
+    mux.Post("/auth/mfa/totp/verify", auth.TOTPSetupVerifyHandler(r))
+    mux.Put("/auth/profile", auth.UpdateProfileHandler(r))
 
 	// main.go (add inside main())
 
@@ -112,6 +113,7 @@ func main() {
 	// All routes below require authentication
 
 	mux.Handle("/auth/me", auth.ProfileHandler(r))
+    mux.Handle("/auth/me/full", auth.FullProfileHandler(r))
 
 	// Example protected routes by org/role
 	mux.Route("/orgs/{slug}", func(sr chi.Router) {
