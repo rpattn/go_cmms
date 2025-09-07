@@ -235,7 +235,6 @@ func ProfileHandler(r repo.Repo) http.HandlerFunc {
 			http.Error(w, "internal error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		fmt.Printf("YSER: %s", user.AvatarURL)
 		// Fetch full user fields (avatar, country, phone)
 		full, err := r.GetUserByID(req.Context(), user.ID)
 		if err == nil {
@@ -252,8 +251,6 @@ func ProfileHandler(r repo.Repo) http.HandlerFunc {
 			"role":       role,
 			"provider":   sess.Provider,
 		}
-
-		fmt.Printf("STRING: %s", user.AvatarURL)
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {

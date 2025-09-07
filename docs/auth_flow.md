@@ -21,7 +21,7 @@ This document explains how to integrate the frontend with the server’s authent
 
 ## Sessions
 
-- Cookie name: `session` (HttpOnly, SameSite=Lax, Secure=true).
+- Cookie name: `session` (HttpOnly, SameSite=Lax by default; `Secure` is configured via `security.session.cookie_secure` — ensure `true` in production. If you set `SameSite=none`, `Secure` must be `true`).
 - Server maintains session data: `user_id`, `active_org`, `provider`, `expiry`.
 - Logout clears cookie and server session.
 
@@ -43,6 +43,8 @@ Body
 Response
 
 - 201 Created on success; sets `session` cookie.
+
+Production note: The current implementation allows passing `org_slug` to self-join an organisation as a `Member`. This is not recommended for production deployments. Prefer invitation tokens or domain/tenant-based membership approval.
 
 ### Endpoint: POST `/auth/login`
 
@@ -106,7 +108,7 @@ Response
 ### Endpoint: GET `/auth/{provider}/callback`
 
 - Handles state/nonce verification, token exchange, identity mapping, user upsert, and org resolution.
-- On success: issues a session cookie and redirects to an app page (e.g., `/orgs/{slug}/projects`).
+- On success: issues a session cookie and redirects to an app page (e.g., `/orgs/{slug}/projects`). Configure `frontend.url` in server config to ensure safe redirect targets. Avoid relying on header-derived fallbacks in production.
 - App does not enforce TOTP after OIDC sign-in (rely on IdP MFA).
 
 ## Current User and Authorization
@@ -154,6 +156,13 @@ Role-protected routes return 403 when role is insufficient.
 
 - Requires authenticated user with `Admin` or `Owner` role.
 - Returns active sessions with `id`, `user_id`, `org_id`, `provider`, `expires_at`.
+  - Security note: Treat `id` (session identifier) as sensitive bearer material. Do not log or display it outside trusted admin tooling. Future versions may omit or truncate this value.
+
+## Security Notes
+
+- Always set `frontend.url` in production so auth callbacks redirect to a known base URL; otherwise the server may infer a destination from request headers which is unsafe in untrusted edge setups.
+- Ensure `security.session.cookie_secure=true` in production. If cross-site auth flows require `SameSite=none`, `Secure` must be true.
+- For GitHub sign-in, prefer using the account's primary, verified email; if not available, prompt users to link to a local account rather than synthesizing an address.
 
 ## CORS and Static
 
@@ -165,4 +174,3 @@ Role-protected routes return 403 when role is insufficient.
 - Time must be accurate for TOTP; ensure client and server clocks are in sync.
 - Denylist may block specific users or identities (provider+subject) with 403.
 - Rate limit returns 429 with `Retry-After` set.
-

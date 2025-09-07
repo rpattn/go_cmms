@@ -2,6 +2,14 @@
 
 This guide shows how to wire a Next.js app to the Go API in this repo. It covers local auth (username/password + TOTP), OIDC sign-in (Microsoft/Google/GitHub), handling MFA, and two integration modes: direct CORS or same-origin proxy.
 
+> Production Notes / Security Checklist
+>
+> - Configure the API with a `frontend.url` (and `frontend.post_login_path`) so OAuth/OIDC callbacks redirect to a known base URL. Do not rely on header-derived fallbacks.
+> - Ensure cookies are secure: when running cross-site (different domains), set backend cookie to `SameSite=None` and `Secure=true` (HTTPS required). In same-site dev, `SameSite=Lax` is fine.
+> - Always use `credentials: 'include'` in fetch calls so the `session` cookie is sent.
+> - Prefer invitation-based org membership; avoid public self-join via `org_slug` in production.
+> - Treat session IDs as secrets; do not log or display them in admin UIs.
+
 ## Integration Modes
 
 - Direct CORS (simple)
@@ -34,7 +42,7 @@ const nextConfig = {
 module.exports = nextConfig
 ```
 
-Then use relative paths like `/api/auth/login`. Otherwise, use an `API_BASE` env and direct URLs.
+Then use relative paths like `/api/auth/login`. Otherwise, use an `API_BASE` env and direct URLs. Also set the server's `frontend.url` to the app origin to ensure safe redirects after OIDC.
 
 ## Environment
 
@@ -241,4 +249,3 @@ window.location.href = '/login'
 - Always call `fetch` with `credentials: 'include'`.
 - For OIDC, redirect the browser to `${API_BASE}/auth/{provider}`; the server will set the cookie and redirect back into the app.
 - Use the proxy mode for SSR and nicer cookie behavior in development.
-
