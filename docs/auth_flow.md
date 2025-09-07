@@ -34,7 +34,7 @@ This document explains how to integrate the frontend with the server’s authent
 
 ### Endpoint: POST `/auth/signup`
 
-Body (org_slug is required and must be unique)
+Body (org_slug is required, must be unique, and must match `^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$`)
 
 ```json
 { "email": "user@example.com", "username": "user", "name": "User Name", "password": "****", "org_slug": "acme" }
@@ -47,6 +47,13 @@ Responses
   - Sets the session with `active_org` to that newly created org.
 - 400 if `org_slug` is missing or invalid.
 - 409 `{ "error": "org_exists" }` if an organisation already exists with that slug. In that case, sign-up must proceed via an invite from an existing owner (invite flow TBD).
+
+### Organisation Invites
+
+- POST `/auth/invite` (Owner required): create an invite for an email and optional role.
+- POST `/auth/invite/accept`: accept an invite with a token.
+
+Note: endpoints are implemented; see `docs/invites.md` for details. Email delivery is app-specific.
 
 ### Endpoint: POST `/auth/login`
 

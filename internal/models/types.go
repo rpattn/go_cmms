@@ -91,8 +91,19 @@ type LocalCredential struct {
 }
 
 type Session struct {
-	UserID    uuid.UUID
-	ActiveOrg uuid.UUID
-	Provider  string
-	Expiry    time.Time
+    UserID    uuid.UUID
+    ActiveOrg uuid.UUID
+    Provider  string
+    Expiry    time.Time
+}
+
+// OrgInvite represents an invitation to join an organisation.
+type OrgInvite struct {
+    TokenHash string
+    OrgID     uuid.UUID
+    Email     string
+    Role      OrgRole
+    InviterID uuid.UUID
+    ExpiresAt time.Time
+    UsedAt    time.Time
 }

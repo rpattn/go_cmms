@@ -2,18 +2,19 @@
 package auth
 
 import (
-	"context"
-	"crypto/rand"
-	"crypto/subtle"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"log"
+    "context"
+    "crypto/rand"
+    "crypto/subtle"
+    "encoding/base64"
+    "encoding/json"
+    "fmt"
+    "log"
 
-	//"errors"
-	"net/http"
-	"strings"
-	"time"
+    //"errors"
+    "net/http"
+    "regexp"
+    "strings"
+    "time"
 
 	"yourapp/internal/models"
 	"yourapp/internal/repo"
@@ -55,6 +56,10 @@ func SignupHandler(r repo.Repo) http.HandlerFunc {
         slug := strings.ToLower(strings.TrimSpace(body.OrgSlug))
         if slug == "" {
             http.Error(w, "org_slug required", http.StatusBadRequest)
+            return
+        }
+        if !isValidSlug(slug) {
+            http.Error(w, "invalid org_slug (use 3-32 chars: lowercase letters, digits, hyphens; cannot start/end with '-')", http.StatusBadRequest)
             return
         }
 
@@ -104,6 +109,13 @@ func SignupHandler(r repo.Repo) http.HandlerFunc {
         })
         writeJSON(w, http.StatusCreated, map[string]any{"ok": true})
     }
+}
+
+// slug: 3-32 chars, lowercase alnum and hyphen, cannot start/end with hyphen
+var slugRE = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$`)
+
+func isValidSlug(s string) bool {
+    return slugRE.MatchString(s)
 }
 
 // POST /auth/login

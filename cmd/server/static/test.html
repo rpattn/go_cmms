@@ -32,11 +32,12 @@
 
   <h2>Login</h2>
   <form id="login-form">
-    <input type="text" id="login-username" placeholder="Username or email" required /><br />
-    <input type="password" id="login-password" placeholder="Password" required /><br />
+    <input type="text" id="login-username" placeholder="Username or email" required value="admin@example.com"/><br />
+    <input type="password" id="login-password" placeholder="Password" required value="5Se_w:EXCvW8RU2" /><br />
     <input type="text" id="login-totp" placeholder="TOTP code (optional)" /><br />
     <button type="submit">Login</button>
   </form>
+  <a href="/static/invite">Invite</a>
 
   <script>
     const baseUrl = "http://localhost:8080"; // match your BASE_URL

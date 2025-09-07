@@ -4,8 +4,10 @@ import (
     "context"
     "fmt"
     "log/slog"
+    "time"
 
     "github.com/google/uuid"
+    "github.com/jackc/pgx/v5/pgtype"
 
     db "yourapp/internal/db/gen"
     "yourapp/internal/models"
@@ -173,4 +175,47 @@ func (p *pgRepo) ListUserOrgs(ctx context.Context, uid uuid.UUID) ([]models.OrgS
         })
     }
     return res, nil
+}
+
+// ---------------- Invites ----------------
+
+func (p *pgRepo) CreateInvite(ctx context.Context, orgID uuid.UUID, inviterID uuid.UUID, email string, role models.OrgRole, tokenHash string, expiresAt time.Time) error {
+    const q = `INSERT INTO org_invites (token_hash, org_id, email, role, inviter_id, expires_at)
+               VALUES ($1, $2, $3, $4::org_role, $5, $6)`
+    _, err := p.q.Exec(ctx, q, tokenHash, fromUUID(orgID), email, string(role), fromUUID(inviterID), expiresAt)
+    if err != nil {
+        slog.ErrorContext(ctx, "CreateInvite failed", "err", err)
+    }
+    return err
+}
+
+func (p *pgRepo) GetInviteByTokenHash(ctx context.Context, tokenHash string) (models.OrgInvite, error) {
+    const q = `SELECT token_hash, org_id, email, role::text, inviter_id, expires_at, used_at
+               FROM org_invites WHERE token_hash = $1`
+    row := p.q.QueryRow(ctx, q, tokenHash)
+    var m models.OrgInvite
+    var role string
+    var usedAt pgtype.Timestamptz
+    var orgID pgtype.UUID
+    var inviterID pgtype.UUID
+    if err := row.Scan(&m.TokenHash, &orgID, &m.Email, &role, &inviterID, &m.ExpiresAt, &usedAt); err != nil {
+        slog.ErrorContext(ctx, "GetInviteByTokenHash failed", "err", err)
+        return models.OrgInvite{}, err
+    }
+    m.OrgID = toUUID(orgID)
+    m.InviterID = toUUID(inviterID)
+    m.Role = models.OrgRole(role)
+    if usedAt.Valid {
+        m.UsedAt = usedAt.Time
+    }
+    return m, nil
+}
+
+func (p *pgRepo) UseInvite(ctx context.Context, tokenHash string) error {
+    const q = `UPDATE org_invites SET used_at = now() WHERE token_hash = $1 AND used_at IS NULL`
+    _, err := p.q.Exec(ctx, q, tokenHash)
+    if err != nil {
+        slog.ErrorContext(ctx, "UseInvite failed", "err", err)
+    }
+    return err
 }

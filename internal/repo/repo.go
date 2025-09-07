@@ -30,7 +30,7 @@ type Repo interface {
     ListIdentitiesForUser(ctx context.Context, uid uuid.UUID) ([]models.LinkedIdentity, error)
     ListUserOrgs(ctx context.Context, uid uuid.UUID) ([]models.OrgSummary, error)
     GetLastSuccessfulLoginByUsername(ctx context.Context, username string) (time.Time, bool)
-	ApplyGroupRoleMappings(ctx context.Context, orgID uuid.UUID, provider string, groupIDs []string) (models.OrgRole, error)
+    ApplyGroupRoleMappings(ctx context.Context, orgID uuid.UUID, provider string, groupIDs []string) (models.OrgRole, error)
 
 	// Local auth
 	CreateLocalCredential(ctx context.Context, uid uuid.UUID, username, phc string) error
@@ -66,6 +66,11 @@ type Repo interface {
     // Login events
     RecordLoginSuccess(ctx context.Context, username string, ip netip.Addr) error
     RecordLoginFailure(ctx context.Context, username string, ip netip.Addr) error
+
+    // Invites
+    CreateInvite(ctx context.Context, orgID uuid.UUID, inviterID uuid.UUID, email string, role models.OrgRole, tokenHash string, expiresAt time.Time) error
+    GetInviteByTokenHash(ctx context.Context, tokenHash string) (models.OrgInvite, error)
+    UseInvite(ctx context.Context, tokenHash string) error
 }
 
 // pgRepo wraps the sqlc Queries.
