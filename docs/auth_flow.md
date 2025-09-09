@@ -59,6 +59,13 @@ Responses
 - 409 `{ "error": "org_exists" }` if an organisation already exists with that slug. In that case, sign-up must proceed via an invite from an existing owner (invite flow TBD).
 
 ### Organisation Invites
+### Organisation Invites
+
+- POST `/auth/invite` (Owner required): create an invite for an email and optional role. Returns an acceptance URL built from `frontend.url` + optional `frontend.api_route`.
+- POST `/auth/invite/accept`: accept an invite with a token. Creates/loads the user by invite email, adds membership, sets a session.
+- POST `/auth/set-password`: sets/updates the local password for the current session (used immediately after acceptance). Responds with JSON containing a `redirect` URL (or issues a 303 when Accept includes `text/html`).
+
+See `docs/invites.md` for details. Email delivery is app-specific.
 
 - POST `/auth/invite` (Owner required): create an invite for an email and optional role.
 - POST `/auth/invite/accept`: accept an invite with a token.
@@ -126,10 +133,17 @@ Response
 
 ### Endpoint: GET `/auth/{provider}/callback`
 
-- Handles state/nonce verification, token exchange, identity mapping, user upsert, and org resolution.
-- On success: issues a session cookie and redirects to an app page (e.g., `/orgs/{slug}/projects`). Configure `frontend.url` in server config to ensure safe redirect targets. Avoid relying on header-derived fallbacks in production.
+- Handles state/nonce verification, token exchange, and identity extraction.
+- If the identity is already linked to a user: issues a session and selects an existing org for that user.
+- If a user exists with the same email but no link yet: explicit linking is required (no auto-link). A short-lived pending token is set (cookie) and the client should navigate to a link-completion UI.
+- If no user exists with that email: the server does NOT auto-create a user or auto-assign an org. It redirects to `/account/register?reason=signup_required&provider=...&email=...` (or returns 409 JSON).
+- Configure `frontend.url` in server config to ensure safe redirect targets. Avoid relying on header-derived fallbacks in production.
 - App does not enforce TOTP after OIDC sign-in (rely on IdP MFA).
 
+### Identity Linking (existing email, new provider)
+
+- Pending link is created on callback for existing emails without a link.
+- Complete via `POST /auth/link/password` with local password (and TOTP if enabled). On success, identity is linked and session is issued.
 ## Current User and Authorization
 
 ### Endpoint: GET `/auth/me`

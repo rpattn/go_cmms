@@ -8,6 +8,13 @@ This document records a targeted review of the authentication, session, and rela
 
 Overall auth design is sound (opaque server-side sessions, Argon2id for local passwords, optional TOTP, OIDC providers). We identified several high- and medium-risk issues to address before production use.
 
+## Recent Changes (Sep 2025)
+
+- Signup requires a unique `org_slug`; creator becomes `Owner`. Existing slug returns 409.
+- Provider sign-in no longer auto-creates users or auto-assigns an org when the email is unknown; redirects to `/account/register` (or returns 409 `signup_required`). Existing email without link uses explicit link flow (no auto-link).
+- Invites implemented: Owners create invites, recipients accept and get a session, then set password; static helper pages provided under `/invite` and `/invite/accept`.
+- Added `frontend.api_route` (optional) for frontend proxying; URLs are normalized and avoid double slashes.
+
 ## High-Risk Findings
 
 - Organisation access at signup
