@@ -65,7 +65,7 @@ func (p *pgRepo) CreateOrg(ctx context.Context, slug, name, tenantID string) (mo
     o, err := p.q.CreateOrg(ctx, db.CreateOrgParams{
         Slug:       slug,
         Name:       name,
-        MsTenantID: toText(tenantID),
+        MsTenantID: toNullableText(tenantID),
     })
     if err != nil {
         slog.ErrorContext(ctx, "CreateOrg failed", "err", err)

@@ -25,6 +25,14 @@ func toNullText(p *string) pgtype.Text {
     return pgtype.Text{String: *p, Valid: true}
 }
 
+// toNullableText returns NULL when s is empty; otherwise a valid text.
+func toNullableText(s string) pgtype.Text {
+    if s == "" {
+        return pgtype.Text{Valid: false}
+    }
+    return pgtype.Text{String: s, Valid: true}
+}
+
 // Role ranking utility (for best-match selection)
 func rankRole(r string) int {
     switch r {
